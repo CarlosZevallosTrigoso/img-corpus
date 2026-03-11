@@ -1,5 +1,5 @@
 /* ========================================
-   IMG-CORPUS — CSS
+   IMG-CORPUS -- CSS
    Dark utilitarian research-tool aesthetic
    ======================================== */
 
@@ -372,7 +372,7 @@ input, textarea, select, button {
     border-color: var(--accent-secondary);
 }
 .gallery-item.batch-selected .batch-check::after {
-    content: '✓';
+    content: '\2713';
     color: white;
     font-size: 10px;
     font-weight: 700;
