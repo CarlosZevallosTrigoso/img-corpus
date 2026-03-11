@@ -19,6 +19,7 @@ IC.state = {
     activeTool: 'select',
     activeCategory: null,
     viewMode: 'single',
+    activeCollectionId: null,
     canvasBg: '#111118',
     sessionName: 'Sesión sin título',
 };
@@ -75,6 +76,12 @@ IC.getCategoryById = function(id) { return IC.state.categories.find(function(c){
 IC.getCategoryColor = function(id) { var c=IC.getCategoryById(id); return c?c.color:'#888'; };
 IC.hasCategories = function() { return IC.state.categories.length > 0; };
 IC.esc = function(s) { return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; };
+
+// Central filter: returns images visible under current collection (or all)
+IC.getVisibleImages = function() {
+    if (!IC.state.activeCollectionId) return IC.state.images;
+    return IC.getCollectionImages(IC.state.activeCollectionId);
+};
 
 IC.log = function(text) {
     IC.state.auditLog.push({ date: new Date().toISOString(), text: text });
@@ -578,9 +585,10 @@ function initModals() {
 
 // ========== SCOPED IMAGES ==========
 IC.getTargetImages = function() {
+    var base = IC.getVisibleImages();
     if (IC.state.batchMode && IC.state.batchSelected.size > 0)
-        return IC.state.images.filter(function(i){return IC.state.batchSelected.has(i.id)});
-    return IC.state.images.slice();
+        return base.filter(function(i){return IC.state.batchSelected.has(i.id)});
+    return base;
 };
 
 // ========== INIT ==========

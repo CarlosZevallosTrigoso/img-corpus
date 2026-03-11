@@ -115,22 +115,27 @@ var dragSrcId = null;
 IC.renderGallery = function() {
     var g = document.getElementById('gallery');
     var empty = document.getElementById('galleryEmpty');
+    var visible = IC.getVisibleImages();
 
-    if (!IC.state.images.length) {
+    if (!visible.length) {
         g.innerHTML = '';
         empty.classList.remove('hidden');
+        empty.querySelector('p').textContent = IC.state.activeCollectionId
+            ? 'Colección vacía. Asigna imágenes desde "Colecciones".'
+            : 'Arrastra imágenes aquí';
         return;
     }
     empty.classList.add('hidden');
 
-    g.innerHTML = IC.state.images.map(function(img, idx) {
+    g.innerHTML = visible.map(function(img, idx) {
         var cl = ['gallery-item'];
         if (img.id === IC.state.currentImageId) cl.push('active');
         if (IC.state.batchSelected.has(img.id)) cl.push('batch-selected');
+        var globalIdx = IC.state.images.indexOf(img) + 1;
 
         return '<div class="' + cl.join(' ') + '" data-id="' + img.id + '" draggable="true">' +
             '<img src="' + img.dataUrl + '" loading="lazy" draggable="false">' +
-            '<span class="item-idx">' + (idx + 1) + '</span>' +
+            '<span class="item-idx">' + globalIdx + '</span>' +
             '<div class="batch-ck"></div>' +
             '<button class="item-remove" data-id="' + img.id + '">&times;</button>' +
         '</div>';
@@ -260,22 +265,45 @@ IC.selectImage = selectImage;
 // ========== GRID VIEW ==========
 IC.renderGridView = function() {
     var c = document.getElementById('gridViewInner');
-    var imgs = IC.state.images;
+    var imgs = IC.getVisibleImages();
     if (!imgs.length) {
-        c.innerHTML = '<div style="color:var(--t3);padding:40px;text-align:center">Sin imágenes.</div>';
+        c.innerHTML = '<div style="color:var(--t3);padding:40px;text-align:center">Sin imágenes' +
+            (IC.state.activeCollectionId ? ' en esta colección' : '') + '.</div>';
         return;
     }
-    c.innerHTML = imgs.map(function(img, idx) {
+    c.innerHTML = imgs.map(function(img) {
+        var globalIdx = IC.state.images.indexOf(img) + 1;
+        var isSel = IC.state.batchSelected.has(img.id);
         var tags = (img.tags || []).slice(0, 4).map(function(t) {
             return '<span class="grid-item-tag">' + IC.esc(t) + '</span>';
         }).join('');
-        return '<div class="grid-item" data-id="' + img.id + '">' +
+        var annCount = (img.annotations || []).length;
+        var selClass = isSel ? ' grid-item-selected' : '';
+
+        return '<div class="grid-item' + selClass + '" data-id="' + img.id + '">' +
             '<div class="grid-item-img"><img src="' + img.dataUrl + '" loading="lazy"></div>' +
-            '<div class="grid-item-body"><div class="grid-item-name">' + (idx + 1) + '. ' + IC.esc(img.name) + '</div>' +
-            (tags ? '<div class="grid-item-tags">' + tags + '</div>' : '') +
-        '</div></div>';
+            '<div class="grid-item-body">' +
+                '<div class="grid-item-name">' + globalIdx + '. ' + IC.esc(img.name) + '</div>' +
+                (annCount ? '<div style="font-size:10px;color:var(--t3);margin-bottom:2px">' + annCount + ' anotaciones</div>' : '') +
+                (tags ? '<div class="grid-item-tags">' + tags + '</div>' : '') +
+            '</div>' +
+        '</div>';
     }).join('');
+
     c.querySelectorAll('.grid-item').forEach(function(el) {
+        // Single click: select/deselect for batch
+        el.addEventListener('click', function(e) {
+            var id = el.dataset.id;
+            if (IC.state.batchSelected.has(id)) {
+                IC.state.batchSelected.delete(id);
+            } else {
+                IC.state.batchSelected.add(id);
+            }
+            document.getElementById('batchCount').textContent = IC.state.batchSelected.size;
+            IC.renderGridView();
+        });
+
+        // Double click: open in single view
         el.addEventListener('dblclick', function() {
             IC.state.currentImageId = el.dataset.id;
             IC.setViewMode('single');
