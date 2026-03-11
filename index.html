@@ -61,20 +61,22 @@
 
             <!-- Batch toolbar -->
             <div class="batch-toolbar" id="batchToolbar">
-                <div class="batch-info">
-                    <span id="batchCount">0</span> seleccionadas
+                <div class="batch-row">
+                    <span class="batch-info"><span id="batchCount">0</span> sel.</span>
+                    <button class="btn btn-xs btn-ghost" id="btnBatchSelectAll">Todas</button>
+                    <button class="btn btn-xs btn-ghost" id="btnBatchSelectNone">Ninguna</button>
                 </div>
-                <button class="btn btn-xs btn-ghost" id="btnBatchSelectAll" title="Seleccionar todas">Todas</button>
-                <button class="btn btn-xs btn-ghost" id="btnBatchSelectNone" title="Deseleccionar">Ninguna</button>
-                <button class="btn btn-xs btn-accent" id="btnBatchTag" title="Etiquetar selección">
-                    <span class="material-symbols-outlined">label</span> Etiquetar
-                </button>
-                <button class="btn btn-xs btn-accent" id="btnBatchNote" title="Anotar selección">
-                    <span class="material-symbols-outlined">note_add</span> Anotar
-                </button>
-                <button class="btn btn-xs btn-danger" id="btnBatchDelete" title="Eliminar selección">
-                    <span class="material-symbols-outlined">delete</span>
-                </button>
+                <div class="batch-row">
+                    <button class="btn btn-xs btn-accent" id="btnBatchTag">
+                        <span class="material-symbols-outlined">label</span> Etiquetar
+                    </button>
+                    <button class="btn btn-xs btn-accent" id="btnBatchNote">
+                        <span class="material-symbols-outlined">note_add</span> Anotar
+                    </button>
+                    <button class="btn btn-xs btn-danger" id="btnBatchDelete">
+                        <span class="material-symbols-outlined">delete</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Image gallery -->
@@ -153,14 +155,34 @@
                         <span class="material-symbols-outlined">delete_outline</span>
                     </button>
                 </div>
+                <div class="tool-spacer"></div>
+                <div class="tool-group view-toggle">
+                    <button class="tool-btn active" id="btnViewSingle" title="Vista individual (1)">
+                        <span class="material-symbols-outlined">crop_original</span>
+                    </button>
+                    <button class="tool-btn" id="btnViewGrid" title="Vista grilla (G)">
+                        <span class="material-symbols-outlined">grid_view</span>
+                    </button>
+                </div>
             </div>
 
-            <!-- Canvas container -->
+            <!-- Canvas container (single view) -->
             <div class="canvas-container" id="canvasContainer">
                 <canvas id="mainCanvas"></canvas>
                 <div class="canvas-empty" id="canvasEmpty">
                     <span class="material-symbols-outlined">image</span>
                     <p>Selecciona una imagen del corpus</p>
+                </div>
+            </div>
+
+            <!-- Grid view container -->
+            <div class="grid-view hidden" id="gridView">
+                <div class="grid-view-inner" id="gridViewInner">
+                    <!-- Grid items rendered dynamically -->
+                </div>
+                <div class="grid-empty" id="gridEmpty">
+                    <span class="material-symbols-outlined">collections</span>
+                    <p>Agrega imágenes al corpus para verlas aquí</p>
                 </div>
             </div>
         </section>
