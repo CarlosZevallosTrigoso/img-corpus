@@ -261,12 +261,14 @@ IC.initBatchMode = function() {
         IC.state.batchSelected = new Set(IC.state.images.map(i => i.id));
         IC.renderGallery();
         IC.updateBatchCount();
+        if (IC.state.viewMode === 'grid') IC.renderGridView();
     });
 
     document.getElementById('btnBatchSelectNone').addEventListener('click', () => {
         IC.state.batchSelected.clear();
         IC.renderGallery();
         IC.updateBatchCount();
+        if (IC.state.viewMode === 'grid') IC.renderGridView();
     });
 
     document.getElementById('btnBatchTag').addEventListener('click', () => {
@@ -417,8 +419,18 @@ IC.setViewMode = function(mode) {
     const btnGrid = document.getElementById('btnViewGrid');
 
     if (mode === 'grid') {
-        // Save current canvas before switching
         if (IC.saveCurrentCanvasState) IC.saveCurrentCanvasState();
+
+        // Auto-activate batch mode if not already on
+        if (!IC.state.batchMode) {
+            IC.state.batchMode = true;
+            document.getElementById('sidebar').classList.add('batch-mode');
+            document.getElementById('batchToolbar').classList.add('active');
+            document.getElementById('btnBatchMode').classList.add('active');
+            IC.renderGallery();
+            IC.updateBatchCount();
+        }
+
         canvasEl.classList.add('hidden');
         gridEl.classList.remove('hidden');
         btnSingle.classList.remove('active');
@@ -429,7 +441,6 @@ IC.setViewMode = function(mode) {
         canvasEl.classList.remove('hidden');
         btnSingle.classList.add('active');
         btnGrid.classList.remove('active');
-        // Reload current image
         const img = IC.getCurrentImage();
         if (img) IC.loadImageToCanvas(img);
     }
@@ -439,36 +450,40 @@ IC.renderGridView = function() {
     const container = document.getElementById('gridViewInner');
     const emptyEl = document.getElementById('gridEmpty');
 
-    if (IC.state.images.length === 0) {
+    // Only show batch-selected images
+    const selectedImages = IC.state.images
+        .map((img, idx) => ({ img, corpusIndex: idx + 1 }))
+        .filter(entry => IC.state.batchSelected.has(entry.img.id));
+
+    if (selectedImages.length === 0) {
         container.innerHTML = '';
         emptyEl.classList.remove('hidden');
+        emptyEl.querySelector('p').textContent = IC.state.images.length === 0
+            ? 'Agrega imágenes al corpus para verlas aquí'
+            : 'Selecciona imágenes en el corpus para verlas en la grilla';
         return;
     }
     emptyEl.classList.add('hidden');
 
-    container.innerHTML = IC.state.images.map((img, idx) => {
+    container.innerHTML = selectedImages.map(({ img, corpusIndex }) => {
         const annCount = (img.annotations || []).length;
         const tagCount = (img.tags || []).length;
 
-        // Category dots
         const usedCats = [...new Set((img.annotations || []).map(a => a.categoryId))];
         const catDots = usedCats.slice(0, 6).map(catId => {
             const color = IC.getCategoryColor(catId);
             return `<span class="grid-item-cat-dot" style="background:${color}"></span>`;
         }).join('');
 
-        // Tags
         const tags = (img.tags || []).slice(0, 5).map(t =>
             `<span class="grid-item-tag">${escGrid(t)}</span>`
         ).join('');
         const moreTags = tagCount > 5 ? `<span class="grid-item-tag">+${tagCount - 5}</span>` : '';
 
-        // Notes preview
         const notes = img.generalNotes
             ? `<div class="grid-item-notes">${escGrid(img.generalNotes)}</div>`
             : '';
 
-        // Metadata snippet
         const metaParts = [];
         if (img.metadata.source) metaParts.push(img.metadata.source);
         if (img.metadata.date) metaParts.push(img.metadata.date);
@@ -481,7 +496,7 @@ IC.renderGridView = function() {
         <div class="grid-item" data-img-id="${img.id}">
             <div class="grid-item-image">
                 <img src="${img.dataUrl}" alt="${escGrid(img.name)}" loading="lazy">
-                <span class="grid-item-index">${idx + 1}</span>
+                <span class="grid-item-index">${corpusIndex}</span>
                 <div class="grid-item-annotations">
                     ${annCount > 0 ? `<span class="grid-item-ann-count"><span class="material-symbols-outlined">edit_note</span>${annCount}</span>` : ''}
                 </div>
@@ -497,7 +512,6 @@ IC.renderGridView = function() {
         </div>`;
     }).join('');
 
-    // Double click to open in single view
     container.querySelectorAll('.grid-item').forEach(el => {
         el.addEventListener('dblclick', () => {
             const imgId = el.dataset.imgId;
@@ -531,8 +545,74 @@ IC.initHeaderButtons = function() {
         if (IC.exportSession) IC.exportSession();
     });
     document.getElementById('btnGenerateReport').addEventListener('click', () => {
+        IC.updateReportScope();
         IC.openModal('modalReport');
     });
+};
+
+// ========== TARGET IMAGES (respects batch selection) ==========
+IC.getTargetImages = function() {
+    if (IC.state.batchMode && IC.state.batchSelected.size > 0) {
+        return IC.state.images.filter(img => IC.state.batchSelected.has(img.id));
+    }
+    return [...IC.state.images];
+};
+
+IC.exportScope = 'auto'; // 'auto' | 'selected' | 'all'
+
+IC.updateReportScope = function() {
+    const scopeEl = document.getElementById('reportScope');
+    const hasSel = IC.state.batchMode && IC.state.batchSelected.size > 0;
+    const selCount = IC.state.batchSelected.size;
+    const totalCount = IC.state.images.length;
+
+    // Reset to auto
+    IC.exportScope = 'auto';
+
+    if (hasSel) {
+        scopeEl.innerHTML = `
+            <div class="report-scope-title">
+                <span class="material-symbols-outlined">filter_alt</span>
+                Alcance del informe / exportación
+            </div>
+            <div class="report-scope-info">
+                ${selCount} de ${totalCount} imágenes seleccionadas en modo batch.
+            </div>
+            <div class="scope-toggle">
+                <button class="scope-btn active" data-scope="selected">Solo seleccionadas (${selCount})</button>
+                <button class="scope-btn" data-scope="all">Todo el corpus (${totalCount})</button>
+            </div>
+        `;
+        IC.exportScope = 'selected';
+    } else {
+        scopeEl.innerHTML = `
+            <div class="report-scope-title">
+                <span class="material-symbols-outlined">library_books</span>
+                Alcance del informe / exportación
+            </div>
+            <div class="report-scope-info">
+                Se incluirán las ${totalCount} imágenes del corpus.
+                Para exportar un subconjunto, usa el modo batch para seleccionar imágenes.
+            </div>
+        `;
+        IC.exportScope = 'all';
+    }
+
+    // Scope toggle buttons
+    scopeEl.querySelectorAll('.scope-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            scopeEl.querySelectorAll('.scope-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            IC.exportScope = btn.dataset.scope;
+        });
+    });
+};
+
+IC.getScopedImages = function() {
+    if (IC.exportScope === 'selected' && IC.state.batchSelected.size > 0) {
+        return IC.state.images.filter(img => IC.state.batchSelected.has(img.id));
+    }
+    return [...IC.state.images];
 };
 
 // ========== INITIALIZATION ==========
