@@ -8,17 +8,12 @@ window.IC = window.IC || {};
 // ========== STATE ==========
 IC.state = {
     images: [],
-    categories: [
-        { id: 'cat-1', name: 'Denotativo', color: '#4ecdc4' },
-        { id: 'cat-2', name: 'Connotativo', color: '#a78bfa' },
-        { id: 'cat-3', name: 'Contextual', color: '#f59e42' },
-        { id: 'cat-4', name: 'Retórico', color: '#f06060' },
-    ],
+    categories: [],
     currentImageId: null,
     batchMode: false,
     batchSelected: new Set(),
     activeTool: 'select',
-    activeCategory: 'cat-1',
+    activeCategory: null,
     sessionName: 'Sesión sin título',
 };
 
@@ -81,12 +76,16 @@ IC.getCurrentImage = function() {
 };
 
 IC.getCategoryById = function(id) {
-    return IC.state.categories.find(c => c.id === id) || IC.state.categories[0];
+    return IC.state.categories.find(c => c.id === id) || null;
 };
 
 IC.getCategoryColor = function(id) {
     const cat = IC.getCategoryById(id);
-    return cat ? cat.color : '#4ecdc4';
+    return cat ? cat.color : '#888888';
+};
+
+IC.hasCategories = function() {
+    return IC.state.categories.length > 0;
 };
 
 // ========== REFRESH ALL UI ==========
@@ -154,6 +153,12 @@ IC.initModals = function() {
 // ========== CATEGORY MANAGEMENT ==========
 IC.renderCategories = function() {
     const container = document.getElementById('categoriesList');
+
+    if (IC.state.categories.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:11px;padding:4px 0;">Sin categorías. Crea una para comenzar a anotar.</p>';
+        return;
+    }
+
     container.innerHTML = IC.state.categories.map(cat => `
         <div class="category-item" data-cat-id="${cat.id}">
             <span class="category-dot" style="background:${cat.color}"></span>
@@ -166,11 +171,10 @@ IC.renderCategories = function() {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const catId = btn.dataset.catId;
-            if (IC.state.categories.length <= 1) return;
             IC.pushUndo();
             IC.state.categories = IC.state.categories.filter(c => c.id !== catId);
             if (IC.state.activeCategory === catId) {
-                IC.state.activeCategory = IC.state.categories[0].id;
+                IC.state.activeCategory = IC.state.categories.length > 0 ? IC.state.categories[0].id : null;
             }
             IC.renderCategories();
             IC.updateCategorySelects();
@@ -179,14 +183,16 @@ IC.renderCategories = function() {
 };
 
 IC.updateCategorySelects = function() {
-    const options = IC.state.categories.map(c =>
-        `<option value="${c.id}" style="color:${c.color}">${c.name}</option>`
-    ).join('');
+    const options = IC.state.categories.length > 0
+        ? IC.state.categories.map(c =>
+            `<option value="${c.id}" style="color:${c.color}">${c.name}</option>`
+          ).join('')
+        : '<option value="" disabled>Crea una categoría primero</option>';
 
     const toolSelect = document.getElementById('toolCategory');
     if (toolSelect) {
         toolSelect.innerHTML = options;
-        toolSelect.value = IC.state.activeCategory;
+        if (IC.state.activeCategory) toolSelect.value = IC.state.activeCategory;
     }
 
     document.querySelectorAll('.annotation-category-select').forEach(sel => {
@@ -213,6 +219,10 @@ IC.initCategoryUI = function() {
         IC.pushUndo();
         const newCat = { id: 'cat-' + IC.uid(), name, color };
         IC.state.categories.push(newCat);
+        // Auto-select as active if it's the first or no active category
+        if (!IC.state.activeCategory || !IC.state.categories.find(c => c.id === IC.state.activeCategory)) {
+            IC.state.activeCategory = newCat.id;
+        }
         IC.renderCategories();
         IC.updateCategorySelects();
         IC.closeModal('modalAddCategory');
