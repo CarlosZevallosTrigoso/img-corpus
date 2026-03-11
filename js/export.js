@@ -15,12 +15,15 @@ IC.exportSession = function() {
     // Save current canvas state first
     IC.saveCurrentCanvasState();
 
+    const targetImages = IC.getTargetImages();
+    const isPartial = targetImages.length < IC.state.images.length;
+
     const session = {
         version: '1.0',
         exportDate: new Date().toISOString(),
         sessionName: IC.state.sessionName,
         categories: IC.state.categories,
-        images: IC.state.images.map(img => ({
+        images: targetImages.map(img => ({
             id: img.id,
             name: img.name,
             dataUrl: img.dataUrl,
@@ -39,7 +42,8 @@ IC.exportSession = function() {
     const a = document.createElement('a');
     a.href = url;
     const safeName = IC.state.sessionName.replace(/[^a-zA-Z0-9áéíóúñü\s-]/g, '').replace(/\s+/g, '-');
-    a.download = `img-corpus_${safeName}_${dateStamp()}.json`;
+    const suffix = isPartial ? `_${targetImages.length}-imgs` : '';
+    a.download = `img-corpus_${safeName}${suffix}_${dateStamp()}.json`;
     a.click();
     URL.revokeObjectURL(url);
 };
@@ -113,10 +117,11 @@ async function generateReport(format) {
         author: document.getElementById('reportAuthor').value || '',
     };
 
-    // Generate canvas snapshots for each image
+    // Generate canvas snapshots for scoped images
+    const scopedImages = IC.getScopedImages();
     const imageSnapshots = [];
 
-    for (const img of IC.state.images) {
+    for (const img of scopedImages) {
         let snapshot = img.dataUrl;
 
         if (opts.includeAnnotations && img.canvasObjects && img.canvasObjects.length > 0) {
@@ -262,10 +267,10 @@ function buildReportHTML(imageSnapshots, opts) {
         </div>`;
     });
 
-    // Corpus-wide tags summary
+    // Tags summary (scoped to included images)
     const tagCounts = {};
-    IC.state.images.forEach(img => {
-        (img.tags || []).forEach(tag => {
+    imageSnapshots.forEach(entry => {
+        (entry.img.tags || []).forEach(tag => {
             tagCounts[tag] = (tagCounts[tag] || 0) + 1;
         });
     });
@@ -274,7 +279,7 @@ function buildReportHTML(imageSnapshots, opts) {
     if (opts.includeTags && tagsSummary.length > 0) {
         tagsSummaryHTML = `
         <div class="corpus-summary">
-            <h3>Etiquetas del corpus</h3>
+            <h3>Etiquetas del corpus${imageSnapshots.length < IC.state.images.length ? ' (selección)' : ''}</h3>
             <div class="tags-row">
                 ${tagsSummary.map(([t, c]) => `<span class="tag">${esc(t)} (${c})</span>`).join(' ')}
             </div>
@@ -456,7 +461,7 @@ body {
 <div class="report-header">
     <h1>${esc(opts.title)}</h1>
     ${opts.author ? `<div class="subtitle">${esc(opts.author)}</div>` : ''}
-    <div class="report-meta">${dateStr} · ${IC.state.images.length} imágenes · Generado con img-corpus</div>
+    <div class="report-meta">${dateStr} · ${imageSnapshots.length} imágenes · Generado con img-corpus</div>
 </div>
 
 ${imagesHTML}
