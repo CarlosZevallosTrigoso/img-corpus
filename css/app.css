@@ -663,6 +663,63 @@ input, textarea, select, button {
 .general-notes:focus { border-color: var(--accent-primary); }
 .general-notes::placeholder { color: var(--text-muted); }
 
+/* Collapsed note display (click to edit) */
+.note-display {
+    width: 100%;
+    padding: 5px 6px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 24px;
+    transition: border-color 0.12s var(--ease), background 0.12s var(--ease);
+}
+.note-display:hover {
+    border-color: var(--border-subtle);
+    background: var(--bg-elevated);
+}
+.note-display.empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.general-note-display {
+    width: 100%;
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 36px;
+    transition: border-color 0.12s var(--ease);
+}
+.general-note-display:hover { border-color: var(--border-medium); }
+.general-note-display.empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.note-edit-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    display: none;
+}
+.general-notes:focus ~ .note-edit-hint,
+.annotation-note:focus ~ .note-edit-hint {
+    display: block;
+}
+
 /* Annotations list */
 .annotations-list {
     display: flex;
