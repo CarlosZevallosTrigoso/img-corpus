@@ -1,5 +1,5 @@
 /* ========================================
-   IMG-CORPUS — Export
+   IMG-CORPUS \u2014 Export
    Report generation, PDF, JSON session
    ======================================== */
 
@@ -42,7 +42,7 @@ IC.exportSession = function() {
 
     const a = document.createElement('a');
     a.href = url;
-    const safeName = IC.state.sessionName.replace(/[^a-zA-Z0-9áéíóúñü\s-]/g, '').replace(/\s+/g, '-');
+    const safeName = IC.state.sessionName.replace(/[^a-zA-Z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\s-]/g, '').replace(/\s+/g, '-');
     const suffix = isPartial ? `_${targetImages.length}-imgs` : '';
     a.download = `img-corpus_${safeName}${suffix}_${dateStamp()}.json`;
     a.click();
@@ -56,14 +56,14 @@ function importSession(file) {
         try {
             const session = JSON.parse(e.target.result);
             if (!session.images || !Array.isArray(session.images)) {
-                alert('Archivo de sesión inválido.');
+                alert('Archivo de sesi\u00f3n inv\u00e1lido.');
                 return;
             }
 
             IC.pushUndo();
             IC.state.images = session.images;
             IC.state.categories = session.categories || IC.state.categories;
-            IC.state.sessionName = session.sessionName || 'Sesión importada';
+            IC.state.sessionName = session.sessionName || 'Sesi\u00f3n importada';
             IC.state.canvasBg = session.canvasBg || '#111118';
             IC.state.currentImageId = IC.state.images.length > 0 ? IC.state.images[0].id : null;
 
@@ -115,7 +115,7 @@ async function generateReport(format) {
         includeNotes: document.getElementById('reportIncludeNotes').checked,
         includeMetadata: document.getElementById('reportIncludeMetadata').checked,
         includeTags: document.getElementById('reportIncludeTags').checked,
-        title: document.getElementById('reportTitle').value || 'Análisis de corpus visual',
+        title: document.getElementById('reportTitle').value || 'An\u00e1lisis de corpus visual',
         author: document.getElementById('reportAuthor').value || '',
     };
 
@@ -281,7 +281,7 @@ function buildReportHTML(imageSnapshots, opts) {
     if (opts.includeTags && tagsSummary.length > 0) {
         tagsSummaryHTML = `
         <div class="corpus-summary">
-            <h3>Etiquetas del corpus${imageSnapshots.length < IC.state.images.length ? ' (selección)' : ''}</h3>
+            <h3>Etiquetas del corpus${imageSnapshots.length < IC.state.images.length ? ' (selecci\u00f3n)' : ''}</h3>
             <div class="tags-row">
                 ${tagsSummary.map(([t, c]) => `<span class="tag">${esc(t)} (${c})</span>`).join(' ')}
             </div>
@@ -293,7 +293,7 @@ function buildReportHTML(imageSnapshots, opts) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${esc(opts.title)} — img-corpus</title>
+<title>${esc(opts.title)} \u2014 img-corpus</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
@@ -463,14 +463,14 @@ body {
 <div class="report-header">
     <h1>${esc(opts.title)}</h1>
     ${opts.author ? `<div class="subtitle">${esc(opts.author)}</div>` : ''}
-    <div class="report-meta">${dateStr} · ${imageSnapshots.length} imágenes · Generado con img-corpus</div>
+    <div class="report-meta">${dateStr} \u00b7 ${imageSnapshots.length} im\u00e1genes \u00b7 Generado con img-corpus</div>
 </div>
 
 ${imagesHTML}
 ${tagsSummaryHTML}
 
 <div class="report-footer">
-    Informe generado por img-corpus · ${dateStr}
+    Informe generado por img-corpus \u00b7 ${dateStr}
 </div>
 
 <script>
@@ -494,7 +494,7 @@ function downloadHTML(html, title) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const safeName = title.replace(/[^a-zA-Z0-9áéíóúñü\s-]/g, '').replace(/\s+/g, '-');
+    const safeName = title.replace(/[^a-zA-Z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\s-]/g, '').replace(/\s+/g, '-');
     a.download = `${safeName}_${dateStamp()}.html`;
     a.click();
     URL.revokeObjectURL(url);

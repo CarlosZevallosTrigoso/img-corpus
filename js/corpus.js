@@ -1,5 +1,5 @@
 /* ========================================
-   IMG-CORPUS — Corpus Management
+   IMG-CORPUS \u2014 Corpus Management
    Image management, gallery, metadata, tags
    ======================================== */
 

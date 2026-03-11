@@ -1,1382 +1,782 @@
 /* ========================================
-   IMG-CORPUS — CSS
-   Dark utilitarian research-tool aesthetic
+   IMG-CORPUS \u2014 App Core
+   State management, initialization, undo/redo
    ======================================== */
 
-:root {
-    /* Base palette */
-    --bg-deep: #0d0d12;
-    --bg-main: #131318;
-    --bg-surface: #1a1a22;
-    --bg-elevated: #22222e;
-    --bg-hover: #2a2a38;
-    --bg-active: #32324a;
-
-    /* Borders */
-    --border-subtle: #2a2a3a;
-    --border-medium: #3a3a4e;
-    --border-strong: #4a4a62;
-
-    /* Text */
-    --text-primary: #e8e8f0;
-    --text-secondary: #9898b0;
-    --text-muted: #686880;
-    --text-inverse: #0d0d12;
-
-    /* Accent colors */
-    --accent-primary: #4ecdc4;
-    --accent-primary-dim: rgba(78, 205, 196, 0.15);
-    --accent-primary-mid: rgba(78, 205, 196, 0.4);
-    --accent-secondary: #a78bfa;
-    --accent-secondary-dim: rgba(167, 139, 250, 0.15);
-    --accent-warm: #f59e42;
-    --accent-warm-dim: rgba(245, 158, 66, 0.15);
-    --accent-danger: #f06060;
-    --accent-danger-dim: rgba(240, 96, 96, 0.15);
-
-    /* Category defaults */
-    --cat-1: #4ecdc4;
-    --cat-2: #a78bfa;
-    --cat-3: #f59e42;
-    --cat-4: #f06060;
-    --cat-5: #60a5fa;
-    --cat-6: #34d399;
-
-    /* Typography */
-    --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
-    --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
-
-    /* Sizing */
-    --header-h: 48px;
-    --sidebar-w: 220px;
-    --panel-w: 300px;
-    --toolbar-h: 44px;
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 10px;
-
-    /* Transitions */
-    --ease: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ========== RESET & BASE ========== */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-    height: 100%;
-    overflow: hidden;
-    font-family: var(--font-ui);
-    font-size: 13px;
-    color: var(--text-primary);
-    background: var(--bg-deep);
-    -webkit-font-smoothing: antialiased;
-}
-
-::selection {
-    background: var(--accent-primary-mid);
-    color: var(--text-primary);
-}
-
-input, textarea, select, button {
-    font-family: inherit;
-    font-size: inherit;
-    color: inherit;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
-
-/* ========== HEADER ========== */
-#app-header {
-    height: var(--header-h);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 12px;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border-subtle);
-    gap: 16px;
-    user-select: none;
-    z-index: 100;
-}
-
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-}
-
-.logo {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-.logo-img { color: var(--accent-primary); }
-.logo-dash { color: var(--text-muted); }
-.logo-corpus { color: var(--text-primary); }
-
-.header-subtitle {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-weight: 400;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-}
-
-.header-center {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-}
-
-.session-name {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-secondary);
-    padding: 4px 12px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    outline: none;
-    text-align: center;
-    min-width: 180px;
-    max-width: 400px;
-    transition: border-color 0.2s var(--ease);
-}
-.session-name:hover { border-color: var(--border-subtle); }
-.session-name:focus {
-    border-color: var(--accent-primary);
-    color: var(--text-primary);
-    background: var(--bg-elevated);
-}
-
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-}
-
-.header-divider {
-    width: 1px;
-    height: 24px;
-    background: var(--border-subtle);
-    margin: 0 6px;
-}
-
-/* ========== BUTTONS ========== */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 10px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 12px;
-    transition: all 0.15s var(--ease);
-    background: transparent;
-    white-space: nowrap;
-}
-.btn .material-symbols-outlined { font-size: 18px; }
-
-.btn-ghost {
-    color: var(--text-secondary);
-}
-.btn-ghost:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
-}
-
-.btn-accent {
-    background: var(--accent-primary-dim);
-    color: var(--accent-primary);
-    border-color: rgba(78, 205, 196, 0.2);
-}
-.btn-accent:hover {
-    background: rgba(78, 205, 196, 0.25);
-}
-
-.btn-primary {
-    background: var(--accent-primary);
-    color: var(--text-inverse);
-    font-weight: 600;
-}
-.btn-primary:hover {
-    background: #3dbdb5;
-}
-
-.btn-danger {
-    background: var(--accent-danger-dim);
-    color: var(--accent-danger);
-    border-color: rgba(240, 96, 96, 0.2);
-}
-.btn-danger:hover {
-    background: rgba(240, 96, 96, 0.25);
-}
-
-.btn-sm { padding: 4px 8px; font-size: 11px; }
-.btn-sm .material-symbols-outlined { font-size: 16px; }
-
-.btn-xs { padding: 3px 6px; font-size: 11px; }
-.btn-xs .material-symbols-outlined { font-size: 14px; }
-
-.btn-label {
-    font-size: 12px;
-}
-
-/* ========== MAIN LAYOUT ========== */
-#app-main {
-    display: flex;
-    height: calc(100vh - var(--header-h));
-    overflow: hidden;
-}
-
-/* ========== SIDEBAR ========== */
-#sidebar {
-    width: var(--sidebar-w);
-    min-width: var(--sidebar-w);
-    background: var(--bg-main);
-    border-right: 1px solid var(--border-subtle);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.sidebar-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 10px 8px;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.sidebar-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-muted);
-}
-
-.sidebar-actions {
-    display: flex;
-    gap: 2px;
-}
-
-/* Batch toolbar */
-.batch-toolbar {
-    display: none;
-    padding: 6px 8px;
-    background: var(--accent-primary-dim);
-    border-bottom: 1px solid rgba(78, 205, 196, 0.15);
-    flex-direction: column;
-    gap: 4px;
-}
-.batch-toolbar.active { display: flex; }
-
-.batch-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.batch-info {
-    font-size: 11px;
-    color: var(--accent-primary);
-    font-weight: 600;
-    margin-right: 4px;
-    font-family: var(--font-mono);
-}
-
-/* Gallery */
-.gallery-scroll {
-    flex: 1;
-    overflow-y: auto;
-    padding: 6px;
-}
-
-.gallery {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
-}
-
-.gallery-item {
-    position: relative;
-    aspect-ratio: 1;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: border-color 0.15s var(--ease);
-}
-.gallery-item:hover { border-color: var(--border-medium); }
-.gallery-item.active { border-color: var(--accent-primary); }
-.gallery-item.batch-selected { border-color: var(--accent-secondary); }
-
-.gallery-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
-.gallery-item .item-index {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    background: rgba(0,0,0,0.7);
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 2px;
-}
-
-.gallery-item .item-badges {
-    position: absolute;
-    bottom: 3px;
-    right: 3px;
-    display: flex;
-    gap: 2px;
-}
-
-.item-badge {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1px solid rgba(0,0,0,0.4);
-}
-
-.gallery-item .batch-check {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(0,0,0,0.6);
-    border: 2px solid var(--text-muted);
-    display: none;
-    align-items: center;
-    justify-content: center;
-}
-.batch-mode .gallery-item .batch-check { display: flex; }
-.gallery-item.batch-selected .batch-check {
-    background: var(--accent-secondary);
-    border-color: var(--accent-secondary);
-}
-.gallery-item.batch-selected .batch-check::after {
-    content: '✓';
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
-}
-
-.gallery-item .item-remove {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: rgba(240, 96, 96, 0.85);
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-size: 12px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-}
-.gallery-item:hover .item-remove { display: flex; }
-.batch-mode .gallery-item:hover .item-remove { display: none; }
-
-.gallery-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
-    color: var(--text-muted);
-    text-align: center;
-    gap: 8px;
-}
-.gallery-empty .material-symbols-outlined { font-size: 40px; opacity: 0.4; }
-.gallery-empty p { font-size: 12px; }
-.gallery-empty.hidden { display: none; }
-
-/* Categories */
-.sidebar-section {
-    border-top: 1px solid var(--border-subtle);
-    padding: 8px;
-}
-
-.section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-}
-.section-header h3 {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--text-muted);
-}
-
-.categories-list {
-    margin-top: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.category-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    cursor: default;
-}
-.category-item:hover { background: var(--bg-hover); }
-
-.category-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.category-name { flex: 1; }
-
-.category-remove {
-    opacity: 0;
-    cursor: pointer;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 14px;
-    padding: 0;
-    line-height: 1;
-}
-.category-item:hover .category-remove { opacity: 1; }
-
-/* ========== WORKSPACE ========== */
-#workspace {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--bg-deep);
-}
-
-/* Toolbar */
-.toolbar {
-    height: var(--toolbar-h);
-    display: flex;
-    align-items: center;
-    padding: 0 8px;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border-subtle);
-    gap: 4px;
-    user-select: none;
-}
-
-.tool-group {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-}
-
-.tool-divider {
-    width: 1px;
-    height: 24px;
-    background: var(--border-subtle);
-    margin: 0 4px;
-}
-
-.tool-btn {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    background: transparent;
-    color: var(--text-secondary);
-    transition: all 0.12s var(--ease);
-}
-.tool-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-.tool-btn.active {
-    background: var(--accent-primary-dim);
-    color: var(--accent-primary);
-    border-color: rgba(78, 205, 196, 0.2);
-}
-.tool-btn .material-symbols-outlined { font-size: 20px; }
-
-.tool-select {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 4px 8px;
-    font-size: 11px;
-    color: var(--text-primary);
-    cursor: pointer;
-    outline: none;
-}
-.tool-select:focus { border-color: var(--accent-primary); }
-
-.marker-select {
-    width: 72px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-}
-.marker-select.hidden { display: none; }
-
-.zoom-level {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-muted);
-    min-width: 40px;
-    text-align: center;
-}
-
-.tool-spacer {
-    flex: 1;
-}
-
-/* Background toggle */
-.bg-toggle {
-    gap: 4px !important;
-}
-.bg-btn {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid var(--border-subtle);
-    cursor: pointer;
-    transition: border-color 0.12s var(--ease);
-}
-.bg-btn:hover { border-color: var(--border-strong); }
-.bg-btn.active { border-color: var(--accent-primary); }
-.bg-btn[data-bg="#111118"] { background: #111118; }
-.bg-btn[data-bg="#555566"] { background: #555566; }
-.bg-btn[data-bg="#e8e8e8"] { background: #e8e8e8; }
-
-/* Multi-image view */
-.multi-view {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 8px;
-    align-content: start;
-    background: var(--bg-deep);
-}
-.multi-view.hidden { display: none; }
-
-.multi-panel {
-    background: var(--bg-surface);
-    border: 2px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    cursor: pointer;
-    transition: border-color 0.15s var(--ease);
-}
-.multi-panel:hover { border-color: var(--border-medium); }
-.multi-panel.active { border-color: var(--accent-primary); }
-
-.multi-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 10px;
-    background: var(--bg-elevated);
-    border-bottom: 1px solid var(--border-subtle);
-}
-.multi-panel-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.multi-panel-badge {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--text-muted);
-}
-.multi-panel-unpin {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 14px;
-    padding: 0 2px;
-    line-height: 1;
-}
-.multi-panel-unpin:hover { color: var(--accent-danger); }
-
-.multi-panel-img {
-    width: 100%;
-    aspect-ratio: 16/10;
-    overflow: hidden;
-    background: var(--bg-deep);
-}
-.multi-panel-img img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.multi-panel-hint {
-    font-size: 10px;
-    color: var(--text-muted);
-    padding: 4px 10px 6px;
-    text-align: center;
-}
-.multi-panel.active .multi-panel-hint { color: var(--accent-primary); }
-
-/* Drag-drop overlay */
-.gallery-scroll.drag-over {
-    background: var(--accent-primary-dim);
-    outline: 2px dashed var(--accent-primary);
-    outline-offset: -4px;
-}
-
-/* Pinned indicator in gallery */
-.gallery-item.pinned {
-    border-color: var(--accent-warm);
-    box-shadow: 0 0 0 1px var(--accent-warm);
-}
-
-.item-pin {
-    position: absolute;
-    bottom: 3px;
-    left: 3px;
-    background: rgba(245, 158, 66, 0.9);
-    color: white;
-    font-size: 9px;
-    font-family: var(--font-mono);
-    padding: 0 4px;
-    border-radius: 2px;
-    display: none;
-}
-.gallery-item.pinned .item-pin { display: block; }
-
-.view-toggle {
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    gap: 0;
-}
-.view-toggle .tool-btn {
-    border: none;
-    border-radius: 0;
-    width: 30px;
-    height: 28px;
-}
-.view-toggle .tool-btn + .tool-btn {
-    border-left: 1px solid var(--border-subtle);
-}
-
-/* Canvas */
-.canvas-wrap {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background:
-        radial-gradient(circle at 50% 50%, var(--bg-main) 0%, var(--bg-deep) 100%);
-}
-.canvas-wrap.hidden { display: none; }
-
-.canvas-wrap .canvas-container {
-    /* Fabric.js creates its own .canvas-container wrapper */
-    position: absolute !important;
-}
-
-.canvas-empty {
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-    gap: 10px;
-    pointer-events: none;
-    z-index: 1;
-}
-.canvas-empty .material-symbols-outlined { font-size: 56px; opacity: 0.3; }
-.canvas-empty p { font-size: 13px; }
-.canvas-empty.hidden { display: none; }
-
-/* ========== GRID VIEW ========== */
-.grid-view {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    background: var(--bg-deep);
-}
-.grid-view.hidden { display: none; }
-
-.grid-view-inner {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-}
-
-.grid-item {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    cursor: pointer;
-    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
-}
-.grid-item:hover {
-    border-color: var(--accent-primary);
-    box-shadow: 0 4px 20px rgba(78, 205, 196, 0.08);
-}
-
-.grid-item-image {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 4/3;
-    overflow: hidden;
-    background: var(--bg-deep);
-}
-.grid-item-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: block;
-}
-
-.grid-item-index {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    background: rgba(0,0,0,0.7);
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-}
-
-.grid-item-annotations {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    display: flex;
-    gap: 4px;
-}
-.grid-item-ann-count {
-    background: rgba(0,0,0,0.7);
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    padding: 2px 7px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-.grid-item-ann-count .material-symbols-outlined { font-size: 13px; }
-
-.grid-item-body {
-    padding: 10px 12px;
-}
-
-.grid-item-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.grid-item-meta {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.grid-item-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-}
-
-.grid-item-tag {
-    font-size: 10px;
-    padding: 1px 6px;
-    background: var(--accent-primary-dim);
-    color: var(--accent-primary);
-    border-radius: 8px;
-}
-
-.grid-item-notes {
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.grid-item-cats {
-    display: flex;
-    gap: 3px;
-    margin-top: 6px;
-}
-.grid-item-cat-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-
-.grid-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    color: var(--text-muted);
-    text-align: center;
-    gap: 10px;
-}
-.grid-empty .material-symbols-outlined { font-size: 48px; opacity: 0.3; }
-.grid-empty p { font-size: 13px; }
-.grid-empty.hidden { display: none; }
-
-.grid-item-hint {
-    font-size: 10px;
-    color: var(--text-muted);
-    margin-top: 6px;
-    font-style: italic;
-}
-
-/* ========== RIGHT PANEL ========== */
-#rightPanel {
-    width: var(--panel-w);
-    min-width: var(--panel-w);
-    background: var(--bg-main);
-    border-left: 1px solid var(--border-subtle);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.panel-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--bg-surface);
-}
-
-.panel-tab {
-    flex: 1;
-    padding: 8px 4px;
-    text-align: center;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s var(--ease);
-}
-.panel-tab:hover { color: var(--text-secondary); }
-.panel-tab.active {
-    color: var(--accent-primary);
-    border-bottom-color: var(--accent-primary);
-}
-
-.panel-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-    display: none;
-}
-.panel-content.active { display: block; }
-
-.panel-section {
-    margin-bottom: 12px;
-}
-.panel-section h4 {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.annotation-count {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    background: var(--bg-elevated);
-    padding: 1px 6px;
-    border-radius: 8px;
-}
-
-/* General notes textarea */
-.general-notes {
-    width: 100%;
-    min-height: 80px;
-    padding: 8px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    resize: vertical;
-    outline: none;
-    font-size: 12px;
-    line-height: 1.5;
-    transition: border-color 0.15s var(--ease);
-}
-.general-notes:focus { border-color: var(--accent-primary); }
-.general-notes::placeholder { color: var(--text-muted); }
-
-/* Collapsed note display (click to edit) */
-.note-display {
-    width: 100%;
-    padding: 5px 6px;
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--text-primary);
-    background: var(--bg-surface);
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    white-space: pre-wrap;
-    word-break: break-word;
-    min-height: 24px;
-    transition: border-color 0.12s var(--ease), background 0.12s var(--ease);
-}
-.note-display:hover {
-    border-color: var(--border-subtle);
-    background: var(--bg-elevated);
-}
-.note-display.empty {
-    color: var(--text-muted);
-    font-style: italic;
-}
-
-.general-note-display {
-    width: 100%;
-    padding: 8px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--text-primary);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    white-space: pre-wrap;
-    word-break: break-word;
-    min-height: 36px;
-    transition: border-color 0.12s var(--ease);
-}
-.general-note-display:hover { border-color: var(--border-medium); }
-.general-note-display.empty {
-    color: var(--text-muted);
-    font-style: italic;
-}
-
-.note-edit-hint {
-    font-size: 10px;
-    color: var(--text-muted);
-    margin-top: 3px;
-    display: none;
-}
-.general-notes:focus ~ .note-edit-hint,
-.annotation-note:focus ~ .note-edit-hint {
-    display: block;
-}
-
-/* Annotations list */
-.annotations-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.annotation-item {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 8px;
-    border-left: 3px solid var(--accent-primary);
-    transition: border-color 0.15s var(--ease);
-}
-.annotation-item:hover { border-color: var(--border-medium); }
-.annotation-item.selected {
-    border-color: var(--accent-primary);
-    background: var(--accent-primary-dim);
-}
-
-.annotation-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-}
-
-.annotation-number {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 700;
-    background: var(--accent-primary);
-    color: var(--text-inverse);
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.annotation-category-select {
-    flex: 1;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 2px 4px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    outline: none;
-}
-
-.annotation-delete {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 2px;
-    display: flex;
-    align-items: center;
-}
-.annotation-delete:hover { color: var(--accent-danger); background: var(--accent-danger-dim); }
-.annotation-delete .material-symbols-outlined { font-size: 16px; }
-
-.annotation-note {
-    width: 100%;
-    min-height: 36px;
-    padding: 4px 6px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    resize: vertical;
-    outline: none;
-    font-size: 12px;
-    line-height: 1.4;
-}
-.annotation-note:focus { border-color: var(--accent-primary); }
-.annotation-note::placeholder { color: var(--text-muted); }
-
-/* Metadata fields */
-.meta-field {
-    margin-bottom: 8px;
-}
-.meta-field label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin-bottom: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-}
-.meta-field input[type="text"],
-.meta-field textarea {
-    width: 100%;
-    padding: 6px 8px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    outline: none;
-    font-size: 12px;
-    transition: border-color 0.15s var(--ease);
-}
-.meta-field input[type="text"]:focus,
-.meta-field textarea:focus { border-color: var(--accent-primary); }
-.meta-field textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
-.meta-field input::placeholder,
-.meta-field textarea::placeholder { color: var(--text-muted); }
-.meta-field input[type="color"] {
-    width: 40px;
-    height: 30px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--bg-elevated);
-    cursor: pointer;
-    padding: 2px;
-}
-
-/* Tags */
-.tag-input-group {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
-}
-
-.tag-input {
-    flex: 1;
-    padding: 5px 8px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    outline: none;
-    font-size: 12px;
-}
-.tag-input:focus { border-color: var(--accent-primary); }
-.tag-input::placeholder { color: var(--text-muted); }
-
-.tags-cloud {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.tag-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    background: var(--accent-primary-dim);
-    color: var(--accent-primary);
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.tag-chip .tag-remove {
-    cursor: pointer;
-    background: none;
-    border: none;
-    color: inherit;
-    opacity: 0.6;
-    font-size: 14px;
-    padding: 0;
-    line-height: 1;
-}
-.tag-chip .tag-remove:hover { opacity: 1; }
-
-.corpus-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.corpus-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 2px 8px;
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    border-radius: 12px;
-    font-size: 11px;
-    cursor: pointer;
-    border: 1px solid var(--border-subtle);
-    transition: all 0.12s var(--ease);
-}
-.corpus-tag:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-.corpus-tag .tag-count {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--text-muted);
-}
-
-/* ========== MODALS ========== */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(4px);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
-}
-.modal-overlay.active { display: flex; }
-
-.modal {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-lg);
-    width: 420px;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-}
-.modal-large { width: 520px; }
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border-subtle);
-}
-.modal-header h3 {
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.modal-body { padding: 16px; }
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border-subtle);
-}
-
-.modal-hint {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 6px;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-    font-size: 12px;
-    cursor: pointer;
-}
-.checkbox-label input[type="checkbox"] {
-    accent-color: var(--accent-primary);
-}
-
-.report-options {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.report-scope {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 10px 12px;
-    margin-bottom: 12px;
-    font-size: 12px;
-}
-
-.report-scope-title {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.report-scope-title .material-symbols-outlined { font-size: 16px; }
-
-.report-scope-info {
-    color: var(--text-secondary);
-    font-size: 11px;
-}
-
-.scope-toggle {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.scope-btn {
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 500;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.12s var(--ease);
-}
-.scope-btn:hover { border-color: var(--border-medium); color: var(--text-primary); }
-.scope-btn.active {
-    background: var(--accent-primary-dim);
-    border-color: rgba(78, 205, 196, 0.3);
-    color: var(--accent-primary);
-}
-
-/* ========== UTILITY ========== */
-.hidden { display: none !important; }
-
-/* Override for canvas container which uses flex */
-#canvasContainer.hidden { display: none !important; }
-
-/* Fabric.js overrides */
-.canvas-container canvas {
-    border-radius: 2px;
-}
-
-/* ========== KEYBOARD SHORTCUT HINT ========== */
-.shortcut-toast {
-    position: fixed;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%) translateY(100%);
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    padding: 6px 14px;
-    border-radius: var(--radius-md);
-    font-size: 12px;
-    border: 1px solid var(--border-subtle);
-    opacity: 0;
-    transition: all 0.3s var(--ease);
-    z-index: 500;
-    pointer-events: none;
-}
-.shortcut-toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
+window.IC = window.IC || {};
+
+// ========== STATE ==========
+IC.state = {
+    images: [],
+    categories: [],
+    currentImageId: null,
+    batchMode: false,
+    batchSelected: new Set(),
+    activeTool: 'select',
+    activeCategory: null,
+    viewMode: 'single',
+    pinnedIds: [],
+    canvasBg: '#111118',
+    sessionName: 'Sesi\u00f3n sin t\u00edtulo',
+};
+
+IC.undoStack = [];
+IC.redoStack = [];
+IC.MAX_UNDO = 40;
+
+// ========== UNDO / REDO ==========
+IC.pushUndo = function() {
+    const snapshot = JSON.stringify({
+        images: IC.state.images,
+        categories: IC.state.categories,
+    });
+    IC.undoStack.push(snapshot);
+    if (IC.undoStack.length > IC.MAX_UNDO) IC.undoStack.shift();
+    IC.redoStack = [];
+    IC.updateUndoButtons();
+};
+
+IC.undo = function() {
+    if (IC.undoStack.length === 0) return;
+    const current = JSON.stringify({
+        images: IC.state.images,
+        categories: IC.state.categories,
+    });
+    IC.redoStack.push(current);
+    const prev = JSON.parse(IC.undoStack.pop());
+    IC.state.images = prev.images;
+    IC.state.categories = prev.categories;
+    IC.refreshAll();
+    IC.updateUndoButtons();
+};
+
+IC.redo = function() {
+    if (IC.redoStack.length === 0) return;
+    const current = JSON.stringify({
+        images: IC.state.images,
+        categories: IC.state.categories,
+    });
+    IC.undoStack.push(current);
+    const next = JSON.parse(IC.redoStack.pop());
+    IC.state.images = next.images;
+    IC.state.categories = next.categories;
+    IC.refreshAll();
+    IC.updateUndoButtons();
+};
+
+IC.updateUndoButtons = function() {
+    document.getElementById('btnUndo').disabled = IC.undoStack.length === 0;
+    document.getElementById('btnRedo').disabled = IC.redoStack.length === 0;
+};
+
+// ========== HELPERS ==========
+IC.uid = function() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+};
+
+IC.getCurrentImage = function() {
+    return IC.state.images.find(img => img.id === IC.state.currentImageId) || null;
+};
+
+IC.getCategoryById = function(id) {
+    return IC.state.categories.find(c => c.id === id) || null;
+};
+
+IC.getCategoryColor = function(id) {
+    const cat = IC.getCategoryById(id);
+    return cat ? cat.color : '#888888';
+};
+
+IC.hasCategories = function() {
+    return IC.state.categories.length > 0;
+};
+
+// ========== REFRESH ALL UI ==========
+IC.refreshAll = function() {
+    IC.renderGallery();
+    IC.renderCategories();
+    IC.updateCategorySelects();
+    if (IC.state.viewMode === 'grid') {
+        IC.renderGridView();
+    } else if (IC.state.currentImageId) {
+        const img = IC.getCurrentImage();
+        if (img) {
+            IC.loadImageToCanvas(img);
+            IC.renderAnnotationsPanel(img);
+            IC.renderMetadataPanel(img);
+            IC.renderTagsPanel(img);
+        } else {
+            IC.state.currentImageId = null;
+            IC.showCanvasEmpty(true);
+        }
+    }
+    IC.renderCorpusTags();
+};
+
+// ========== SHOW/HIDE CANVAS EMPTY STATE ==========
+IC.showCanvasEmpty = function(show) {
+    const el = document.getElementById('canvasEmpty');
+    if (show) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+};
+
+// ========== PANEL TABS ==========
+IC.initPanelTabs = function() {
+    document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('panel' + capitalize(tab.dataset.panel)).classList.add('active');
+        });
+    });
+};
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// ========== MODALS ==========
+IC.openModal = function(id) {
+    document.getElementById(id).classList.add('active');
+};
+IC.closeModal = function(id) {
+    document.getElementById(id).classList.remove('active');
+};
+
+IC.initModals = function() {
+    document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.closest('.modal-overlay').classList.remove('active');
+        });
+    });
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.classList.remove('active');
+        });
+    });
+};
+
+// ========== CATEGORY MANAGEMENT ==========
+IC.renderCategories = function() {
+    const container = document.getElementById('categoriesList');
+
+    if (IC.state.categories.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:11px;padding:4px 0;">Sin categor\u00edas. Crea una para comenzar a anotar.</p>';
+        return;
+    }
+
+    container.innerHTML = IC.state.categories.map(cat => `
+        <div class="category-item" data-cat-id="${cat.id}">
+            <span class="category-dot" style="background:${cat.color}"></span>
+            <span class="category-name">${cat.name}</span>
+            <button class="category-remove" data-cat-id="${cat.id}" title="Eliminar">&times;</button>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.category-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const catId = btn.dataset.catId;
+            IC.pushUndo();
+            IC.state.categories = IC.state.categories.filter(c => c.id !== catId);
+            if (IC.state.activeCategory === catId) {
+                IC.state.activeCategory = IC.state.categories.length > 0 ? IC.state.categories[0].id : null;
+            }
+            IC.renderCategories();
+            IC.updateCategorySelects();
+        });
+    });
+};
+
+IC.updateCategorySelects = function() {
+    const options = IC.state.categories.length > 0
+        ? IC.state.categories.map(c =>
+            `<option value="${c.id}" style="color:${c.color}">${c.name}</option>`
+          ).join('')
+        : '<option value="" disabled>Crea una categor\u00eda primero</option>';
+
+    const toolSelect = document.getElementById('toolCategory');
+    if (toolSelect) {
+        toolSelect.innerHTML = options;
+        if (IC.state.activeCategory) toolSelect.value = IC.state.activeCategory;
+    }
+
+    document.querySelectorAll('.annotation-category-select').forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = options;
+        if (IC.state.categories.find(c => c.id === current)) {
+            sel.value = current;
+        }
+    });
+};
+
+IC.initCategoryUI = function() {
+    document.getElementById('btnAddCategory').addEventListener('click', () => {
+        IC.openModal('modalAddCategory');
+        document.getElementById('categoryNameInput').value = '';
+        document.getElementById('categoryColorInput').value = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6,'0');
+        setTimeout(() => document.getElementById('categoryNameInput').focus(), 100);
+    });
+
+    document.getElementById('btnCategoryApply').addEventListener('click', () => {
+        const name = document.getElementById('categoryNameInput').value.trim();
+        const color = document.getElementById('categoryColorInput').value;
+        if (!name) return;
+        IC.pushUndo();
+        const newCat = { id: 'cat-' + IC.uid(), name, color };
+        IC.state.categories.push(newCat);
+        // Always switch to newly created category
+        IC.state.activeCategory = newCat.id;
+        IC.renderCategories();
+        IC.updateCategorySelects();
+        IC.closeModal('modalAddCategory');
+    });
+
+    document.getElementById('toolCategory').addEventListener('change', (e) => {
+        IC.state.activeCategory = e.target.value;
+    });
+};
+
+// ========== BATCH MODE ==========
+IC.initBatchMode = function() {
+    document.getElementById('btnBatchMode').addEventListener('click', () => {
+        IC.state.batchMode = !IC.state.batchMode;
+        IC.state.batchSelected.clear();
+        const sidebar = document.getElementById('sidebar');
+        const toolbar = document.getElementById('batchToolbar');
+        const btn = document.getElementById('btnBatchMode');
+        if (IC.state.batchMode) {
+            sidebar.classList.add('batch-mode');
+            toolbar.classList.add('active');
+            btn.classList.add('active');
+        } else {
+            sidebar.classList.remove('batch-mode');
+            toolbar.classList.remove('active');
+            btn.classList.remove('active');
+        }
+        IC.renderGallery();
+        IC.updateBatchCount();
+    });
+
+    document.getElementById('btnBatchSelectAll').addEventListener('click', () => {
+        IC.state.batchSelected = new Set(IC.state.images.map(i => i.id));
+        IC.renderGallery();
+        IC.updateBatchCount();
+        if (IC.state.viewMode === 'grid') IC.renderGridView();
+    });
+
+    document.getElementById('btnBatchSelectNone').addEventListener('click', () => {
+        IC.state.batchSelected.clear();
+        IC.renderGallery();
+        IC.updateBatchCount();
+        if (IC.state.viewMode === 'grid') IC.renderGridView();
+    });
+
+    document.getElementById('btnBatchTag').addEventListener('click', () => {
+        if (IC.state.batchSelected.size === 0) return;
+        document.getElementById('batchTagInput').value = '';
+        IC.openModal('modalBatchTag');
+        setTimeout(() => document.getElementById('batchTagInput').focus(), 100);
+    });
+
+    document.getElementById('btnBatchTagApply').addEventListener('click', () => {
+        const raw = document.getElementById('batchTagInput').value;
+        const tags = raw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+        if (tags.length === 0) return;
+        IC.pushUndo();
+        IC.state.images.forEach(img => {
+            if (IC.state.batchSelected.has(img.id)) {
+                tags.forEach(tag => {
+                    if (!img.tags.includes(tag)) img.tags.push(tag);
+                });
+            }
+        });
+        IC.closeModal('modalBatchTag');
+        IC.renderTagsPanel(IC.getCurrentImage());
+        IC.renderCorpusTags();
+    });
+
+    document.getElementById('btnBatchNote').addEventListener('click', () => {
+        if (IC.state.batchSelected.size === 0) return;
+        document.getElementById('batchNoteInput').value = '';
+        IC.openModal('modalBatchNote');
+        setTimeout(() => document.getElementById('batchNoteInput').focus(), 100);
+    });
+
+    document.getElementById('btnBatchNoteApply').addEventListener('click', () => {
+        const note = document.getElementById('batchNoteInput').value.trim();
+        if (!note) return;
+        IC.pushUndo();
+        IC.state.images.forEach(img => {
+            if (IC.state.batchSelected.has(img.id)) {
+                img.generalNotes = img.generalNotes
+                    ? img.generalNotes + '\n\n' + note
+                    : note;
+            }
+        });
+        IC.closeModal('modalBatchNote');
+        const cur = IC.getCurrentImage();
+        if (cur) document.getElementById('generalNotes').value = cur.generalNotes || '';
+    });
+
+    document.getElementById('btnBatchDelete').addEventListener('click', () => {
+        if (IC.state.batchSelected.size === 0) return;
+        if (!confirm(`\u00bfEliminar ${IC.state.batchSelected.size} im\u00e1genes del corpus?`)) return;
+        IC.pushUndo();
+        IC.state.images = IC.state.images.filter(img => !IC.state.batchSelected.has(img.id));
+        if (IC.state.batchSelected.has(IC.state.currentImageId)) {
+            IC.state.currentImageId = IC.state.images.length > 0 ? IC.state.images[0].id : null;
+        }
+        IC.state.batchSelected.clear();
+        IC.refreshAll();
+        IC.updateBatchCount();
+        if (!IC.state.currentImageId) IC.showCanvasEmpty(true);
+    });
+};
+
+IC.updateBatchCount = function() {
+    document.getElementById('batchCount').textContent = IC.state.batchSelected.size;
+};
+
+// ========== SESSION NAME ==========
+IC.initSessionName = function() {
+    const el = document.getElementById('sessionName');
+    el.textContent = IC.state.sessionName;
+    el.addEventListener('blur', () => {
+        IC.state.sessionName = el.textContent.trim() || 'Sesi\u00f3n sin t\u00edtulo';
+    });
+    el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+};
+
+// ========== KEYBOARD SHORTCUTS ==========
+IC.initKeyboard = function() {
+    document.addEventListener('keydown', (e) => {
+        // Don't intercept when typing in inputs
+        const tag = e.target.tagName.toLowerCase();
+        const editable = e.target.isContentEditable;
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) return;
+
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'z') { e.preventDefault(); IC.undo(); }
+            if (e.key === 'y') { e.preventDefault(); IC.redo(); }
+            return;
+        }
+
+        switch(e.key.toLowerCase()) {
+            case 'v': IC.setTool('select'); break;
+            case 'r': IC.setTool('rect'); break;
+            case 'e': IC.setTool('ellipse'); break;
+            case 'p': IC.setTool('polygon'); break;
+            case 'd': IC.setTool('freedraw'); break;
+            case 'a': IC.setTool('arrow'); break;
+            case 't': IC.setTool('text'); break;
+            case 'm': IC.setTool('marker'); break;
+            case 'delete':
+            case 'backspace':
+                if (IC.deleteSelectedAnnotation) IC.deleteSelectedAnnotation();
+                break;
+            case 'escape':
+                IC.setTool('select');
+                break;
+            case '=':
+            case '+': if (IC.zoomIn) IC.zoomIn(); break;
+            case '-': if (IC.zoomOut) IC.zoomOut(); break;
+            case '0': if (IC.zoomFit) IC.zoomFit(); break;
+            case 'g': IC.setViewMode('grid'); break;
+            case '1': IC.setViewMode('single'); break;
+        }
+    });
+};
+
+// ========== TOOL SELECTION ==========
+IC.setTool = function(tool) {
+    IC.state.activeTool = tool;
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tool === tool);
+    });
+    if (IC.applyTool) IC.applyTool(tool);
+};
+
+IC.initToolbar = function() {
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+        btn.addEventListener('click', () => IC.setTool(btn.dataset.tool));
+    });
+
+    document.getElementById('btnZoomIn').addEventListener('click', () => IC.zoomIn && IC.zoomIn());
+    document.getElementById('btnZoomOut').addEventListener('click', () => IC.zoomOut && IC.zoomOut());
+    document.getElementById('btnZoomFit').addEventListener('click', () => IC.zoomFit && IC.zoomFit());
+    document.getElementById('btnDeleteSelected').addEventListener('click', () => {
+        if (IC.deleteSelectedAnnotation) IC.deleteSelectedAnnotation();
+    });
+
+    // View mode toggle
+    document.getElementById('btnViewSingle').addEventListener('click', () => IC.setViewMode('single'));
+    document.getElementById('btnViewGrid').addEventListener('click', () => IC.setViewMode('grid'));
+
+    // Background toggle
+    document.querySelectorAll('.bg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            IC.state.canvasBg = btn.dataset.bg;
+            if (IC.canvas) {
+                IC.canvas.setBackgroundColor(btn.dataset.bg, IC.canvas.renderAll.bind(IC.canvas));
+            }
+        });
+    });
+};
+
+// ========== VIEW MODE ==========
+IC.setViewMode = function(mode) {
+    IC.state.viewMode = mode;
+    const canvasEl = document.getElementById('canvasContainer');
+    const gridEl = document.getElementById('gridView');
+    const multiEl = document.getElementById('multiView');
+    const btnSingle = document.getElementById('btnViewSingle');
+    const btnGrid = document.getElementById('btnViewGrid');
+
+    // Hide all first
+    canvasEl.classList.add('hidden');
+    gridEl.classList.add('hidden');
+    multiEl.classList.add('hidden');
+
+    if (mode === 'grid') {
+        if (IC.saveCurrentCanvasState) IC.saveCurrentCanvasState();
+        if (!IC.state.batchMode) {
+            IC.state.batchMode = true;
+            document.getElementById('sidebar').classList.add('batch-mode');
+            document.getElementById('batchToolbar').classList.add('active');
+            document.getElementById('btnBatchMode').classList.add('active');
+            IC.renderGallery();
+            IC.updateBatchCount();
+        }
+        gridEl.classList.remove('hidden');
+        btnSingle.classList.remove('active');
+        btnGrid.classList.add('active');
+        IC.renderGridView();
+    } else {
+        // Single mode - check if multi-view is active
+        btnSingle.classList.add('active');
+        btnGrid.classList.remove('active');
+
+        if (IC.state.pinnedIds.length > 1) {
+            IC.saveCurrentCanvasState();
+            multiEl.classList.remove('hidden');
+            IC.renderMultiView();
+        } else {
+            canvasEl.classList.remove('hidden');
+            setTimeout(() => {
+                if (IC.canvas) {
+                    const r = canvasEl.getBoundingClientRect();
+                    IC.canvas.setWidth(r.width);
+                    IC.canvas.setHeight(r.height - 4);
+                    IC.canvas.renderAll();
+                }
+                const img = IC.getCurrentImage();
+                if (img) IC.loadImageToCanvas(img);
+            }, 50);
+        }
+    }
+};
+
+// ========== PIN / MULTI-VIEW ==========
+IC.togglePin = function(imgId) {
+    const idx = IC.state.pinnedIds.indexOf(imgId);
+    if (idx >= 0) {
+        IC.state.pinnedIds.splice(idx, 1);
+    } else {
+        if (IC.state.pinnedIds.length >= 4) return; // max 4
+        IC.state.pinnedIds.push(imgId);
+    }
+
+    IC.renderGallery();
+
+    if (IC.state.viewMode === 'single') {
+        if (IC.state.pinnedIds.length > 1) {
+            IC.saveCurrentCanvasState();
+            document.getElementById('canvasContainer').classList.add('hidden');
+            document.getElementById('multiView').classList.remove('hidden');
+            IC.renderMultiView();
+        } else {
+            document.getElementById('multiView').classList.add('hidden');
+            document.getElementById('canvasContainer').classList.remove('hidden');
+            setTimeout(() => {
+                if (IC.canvas) {
+                    const r = document.getElementById('canvasContainer').getBoundingClientRect();
+                    IC.canvas.setWidth(r.width);
+                    IC.canvas.setHeight(r.height - 4);
+                }
+                const img = IC.getCurrentImage();
+                if (img) IC.loadImageToCanvas(img);
+            }, 50);
+        }
+    }
+};
+
+IC.renderMultiView = function() {
+    const container = document.getElementById('multiView');
+    const images = IC.state.pinnedIds
+        .map(id => IC.state.images.find(i => i.id === id))
+        .filter(Boolean);
+
+    if (images.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    // Save current canvas for snapshot
+    IC.saveCurrentCanvasState();
+
+    container.innerHTML = images.map((img, idx) => {
+        const isActive = img.id === IC.state.currentImageId;
+        const corpusIdx = IC.state.images.indexOf(img) + 1;
+        const annCount = (img.annotations || []).length;
+
+        // Use dataUrl for static preview
+        const src = img.dataUrl;
+
+        return `
+        <div class="multi-panel ${isActive ? 'active' : ''}" data-img-id="${img.id}">
+            <div class="multi-panel-header">
+                <span class="multi-panel-title">${corpusIdx}. ${escGrid(img.name)}</span>
+                <span class="multi-panel-badge">${annCount} anot.</span>
+                <button class="multi-panel-unpin" data-img-id="${img.id}" title="Desfijar">&times;</button>
+            </div>
+            <div class="multi-panel-img">
+                <img src="${src}" alt="${escGrid(img.name)}">
+            </div>
+            <div class="multi-panel-hint">${isActive ? 'Activa \u2014 anotando' : 'Clic para activar'}</div>
+        </div>`;
+    }).join('');
+
+    // Click to activate
+    container.querySelectorAll('.multi-panel').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.classList.contains('multi-panel-unpin')) return;
+            const imgId = el.dataset.imgId;
+            if (imgId === IC.state.currentImageId) return;
+
+            IC.saveCurrentCanvasState();
+            IC.state.currentImageId = imgId;
+
+            // Switch to canvas for this image
+            document.getElementById('multiView').classList.add('hidden');
+            document.getElementById('canvasContainer').classList.remove('hidden');
+            setTimeout(() => {
+                if (IC.canvas) {
+                    const r = document.getElementById('canvasContainer').getBoundingClientRect();
+                    IC.canvas.setWidth(r.width);
+                    IC.canvas.setHeight(r.height - 4);
+                }
+                const img = IC.getCurrentImage();
+                if (img) IC.loadImageToCanvas(img);
+                IC.renderAnnotationsPanel(img);
+                IC.renderMetadataPanel(img);
+                IC.renderTagsPanel(img);
+                IC.renderGallery();
+                // After interaction, show multi-view again
+            }, 50);
+        });
+    });
+
+    // Unpin
+    container.querySelectorAll('.multi-panel-unpin').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            IC.togglePin(btn.dataset.imgId);
+        });
+    });
+};
+
+IC.renderGridView = function() {
+    const container = document.getElementById('gridViewInner');
+    const emptyEl = document.getElementById('gridEmpty');
+
+    // Only show batch-selected images
+    const selectedImages = IC.state.images
+        .map((img, idx) => ({ img, corpusIndex: idx + 1 }))
+        .filter(entry => IC.state.batchSelected.has(entry.img.id));
+
+    if (selectedImages.length === 0) {
+        container.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        emptyEl.querySelector('p').textContent = IC.state.images.length === 0
+            ? 'Agrega im\u00e1genes al corpus para verlas aqu\u00ed'
+            : 'Selecciona im\u00e1genes en el corpus para verlas en la grilla';
+        return;
+    }
+    emptyEl.classList.add('hidden');
+
+    container.innerHTML = selectedImages.map(({ img, corpusIndex }) => {
+        const annCount = (img.annotations || []).length;
+        const tagCount = (img.tags || []).length;
+
+        const usedCats = [...new Set((img.annotations || []).map(a => a.categoryId))];
+        const catDots = usedCats.slice(0, 6).map(catId => {
+            const color = IC.getCategoryColor(catId);
+            return `<span class="grid-item-cat-dot" style="background:${color}"></span>`;
+        }).join('');
+
+        const tags = (img.tags || []).slice(0, 5).map(t =>
+            `<span class="grid-item-tag">${escGrid(t)}</span>`
+        ).join('');
+        const moreTags = tagCount > 5 ? `<span class="grid-item-tag">+${tagCount - 5}</span>` : '';
+
+        const notes = img.generalNotes
+            ? `<div class="grid-item-notes">${escGrid(img.generalNotes)}</div>`
+            : '';
+
+        const metaParts = [];
+        if (img.metadata.source) metaParts.push(img.metadata.source);
+        if (img.metadata.date) metaParts.push(img.metadata.date);
+        if (img.metadata.author) metaParts.push(img.metadata.author);
+        const metaStr = metaParts.length > 0
+            ? `<div class="grid-item-meta">${escGrid(metaParts.join(' \u00b7 '))}</div>`
+            : '';
+
+        return `
+        <div class="grid-item" data-img-id="${img.id}">
+            <div class="grid-item-image">
+                <img src="${img.dataUrl}" alt="${escGrid(img.name)}" loading="lazy">
+                <span class="grid-item-index">${corpusIndex}</span>
+                <div class="grid-item-annotations">
+                    ${annCount > 0 ? `<span class="grid-item-ann-count"><span class="material-symbols-outlined">edit_note</span>${annCount}</span>` : ''}
+                </div>
+            </div>
+            <div class="grid-item-body">
+                <div class="grid-item-name">${escGrid(img.name)}</div>
+                ${metaStr}
+                ${tags || moreTags ? `<div class="grid-item-tags">${tags}${moreTags}</div>` : ''}
+                ${notes}
+                ${catDots ? `<div class="grid-item-cats">${catDots}</div>` : ''}
+                <div class="grid-item-hint">Doble clic para anotar</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    container.querySelectorAll('.grid-item').forEach(el => {
+        el.addEventListener('dblclick', () => {
+            const imgId = el.dataset.imgId;
+            IC.state.currentImageId = imgId;
+            IC.setViewMode('single');
+            IC.selectImage(imgId);
+            IC.renderGallery();
+            const img = IC.getCurrentImage();
+            if (img) {
+                IC.renderAnnotationsPanel(img);
+                IC.renderMetadataPanel(img);
+                IC.renderTagsPanel(img);
+            }
+        });
+    });
+};
+
+function escGrid(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ========== HEADER BUTTONS ==========
+IC.initHeaderButtons = function() {
+    document.getElementById('btnUndo').addEventListener('click', () => IC.undo());
+    document.getElementById('btnRedo').addEventListener('click', () => IC.redo());
+    document.getElementById('btnImportSession').addEventListener('click', () => {
+        document.getElementById('importFileInput').click();
+    });
+    document.getElementById('btnExportSession').addEventListener('click', () => {
+        if (IC.exportSession) IC.exportSession();
+    });
+    document.getElementById('btnGenerateReport').addEventListener('click', () => {
+        IC.updateReportScope();
+        IC.openModal('modalReport');
+    });
+};
+
+// ========== TARGET IMAGES (respects batch selection) ==========
+IC.getTargetImages = function() {
+    if (IC.state.batchMode && IC.state.batchSelected.size > 0) {
+        return IC.state.images.filter(img => IC.state.batchSelected.has(img.id));
+    }
+    return [...IC.state.images];
+};
+
+IC.exportScope = 'auto'; // 'auto' | 'selected' | 'all'
+
+IC.updateReportScope = function() {
+    const scopeEl = document.getElementById('reportScope');
+    const hasSel = IC.state.batchMode && IC.state.batchSelected.size > 0;
+    const selCount = IC.state.batchSelected.size;
+    const totalCount = IC.state.images.length;
+
+    // Reset to auto
+    IC.exportScope = 'auto';
+
+    if (hasSel) {
+        scopeEl.innerHTML = `
+            <div class="report-scope-title">
+                <span class="material-symbols-outlined">filter_alt</span>
+                Alcance del informe / exportaci\u00f3n
+            </div>
+            <div class="report-scope-info">
+                ${selCount} de ${totalCount} im\u00e1genes seleccionadas en modo batch.
+            </div>
+            <div class="scope-toggle">
+                <button class="scope-btn active" data-scope="selected">Solo seleccionadas (${selCount})</button>
+                <button class="scope-btn" data-scope="all">Todo el corpus (${totalCount})</button>
+            </div>
+        `;
+        IC.exportScope = 'selected';
+    } else {
+        scopeEl.innerHTML = `
+            <div class="report-scope-title">
+                <span class="material-symbols-outlined">library_books</span>
+                Alcance del informe / exportaci\u00f3n
+            </div>
+            <div class="report-scope-info">
+                Se incluir\u00e1n las ${totalCount} im\u00e1genes del corpus.
+                Para exportar un subconjunto, usa el modo batch para seleccionar im\u00e1genes.
+            </div>
+        `;
+        IC.exportScope = 'all';
+    }
+
+    // Scope toggle buttons
+    scopeEl.querySelectorAll('.scope-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            scopeEl.querySelectorAll('.scope-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            IC.exportScope = btn.dataset.scope;
+        });
+    });
+};
+
+IC.getScopedImages = function() {
+    if (IC.exportScope === 'selected' && IC.state.batchSelected.size > 0) {
+        return IC.state.images.filter(img => IC.state.batchSelected.has(img.id));
+    }
+    return [...IC.state.images];
+};
+
+// ========== INITIALIZATION ==========
+document.addEventListener('DOMContentLoaded', () => {
+    IC.initModals();
+    IC.initPanelTabs();
+    IC.initSessionName();
+    IC.initCategoryUI();
+    IC.initBatchMode();
+    IC.initToolbar();
+    IC.initHeaderButtons();
+    IC.initKeyboard();
+    IC.renderCategories();
+    IC.updateCategorySelects();
+    IC.updateUndoButtons();
+
+    // Defer canvas-dependent init
+    setTimeout(() => {
+        if (IC.initCanvas) IC.initCanvas();
+        if (IC.initCorpus) IC.initCorpus();
+        if (IC.initExport) IC.initExport();
+        IC.showCanvasEmpty(true);
+    }, 100);
+});
