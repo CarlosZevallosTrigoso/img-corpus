@@ -84,7 +84,7 @@
                 <!-- Categories -->
                 <div class="side-section">
                     <div class="section-hdr">
-                        <h3>Categorías</h3>
+                        <h3>Categorías <button class="info-btn" data-info="Las categorías clasifican tus anotaciones. Cada herramienta de anotación dibuja con el color de la categoría activa (selector en el toolbar). Crea categorías según tu marco analítico.">i</button></h3>
                         <button class="btn btn-xs btn-ghost" id="btnAddCategory"><span class="material-symbols-outlined">add</span></button>
                     </div>
                     <div id="categoriesList"></div>
@@ -169,7 +169,7 @@
         <aside id="rightPanel">
             <div class="rpanel-tabs">
                 <button class="rpanel-tab active" data-rp="annotations">Anotaciones</button>
-                <button class="rpanel-tab" data-rp="metadata">Datos</button>
+                <button class="rpanel-tab" data-rp="metadata">Metadatos</button>
                 <button class="rpanel-tab" data-rp="tags">Etiquetas</button>
                 <button class="rpanel-tab" data-rp="chains">Cadenas</button>
                 <button class="rpanel-tab" data-rp="search">Buscar</button>
@@ -177,71 +177,87 @@
 
             <!-- Annotations -->
             <div class="rpanel-content active" id="rpAnnotations">
+                <div class="scope-indicator" id="annScope"></div>
                 <div class="rp-section">
-                    <h4>Notas generales</h4>
+                    <h4>Notas generales <button class="info-btn" data-info="Notas libres sobre esta imagen. No vinculadas a ninguna marca visual.">i</button></h4>
                     <div class="note-display empty" id="genNotesDisplay">Clic para agregar...</div>
                     <textarea class="note-textarea hidden" id="genNotes" placeholder="Notas generales..."></textarea>
                     <div class="note-hint hidden" id="genNotesHint">Enter = guardar · Shift+Enter = salto</div>
                 </div>
                 <div class="rp-section">
-                    <h4>Anotaciones <span class="ann-count" id="annCount">0</span></h4>
+                    <h4>Anotaciones <span class="ann-count" id="annCount">0</span> <button class="info-btn" data-info="Cada anotación tiene tres campos: Descripción (qué se ve), Interpretación (qué significa en tu marco teórico) y Memo reflexivo (dudas, hipótesis). Si dejas los tres vacíos, la anotación se elimina.">i</button></h4>
                     <div id="annList"></div>
                 </div>
                 <div class="rp-section">
-                    <h4>Relaciones intra-imagen</h4>
+                    <h4>Relaciones intra-imagen <button class="info-btn" data-info="Vincula dos anotaciones dentro de la misma imagen. Usa la herramienta Relación (L) en el toolbar: clic en un badge, luego en otro, y elige el tipo de relación (contraste, jerarquía, repetición, etc).">i</button></h4>
                     <div id="relationsList"></div>
                 </div>
             </div>
 
             <!-- Metadata -->
             <div class="rpanel-content" id="rpMetadata">
+                <div class="scope-indicator" id="metaScope"></div>
                 <div class="rp-section">
-                    <h4>Campos estándar</h4>
+                    <h4>Campos estándar <button class="info-btn" data-info="Metadatos descriptivos de la imagen. Editar aquí modifica solo la imagen activa (la que ves en el canvas). Para aplicar un mismo valor a varias imágenes, selecciónalas con ⌘/Ctrl+clic y usa 'Aplicar a selección'.">i</button></h4>
                     <div class="meta-fields" id="metaFields"></div>
+                    <button class="btn btn-xs btn-ghost hidden" id="btnMetaBatch" style="margin-top:6px"><span class="material-symbols-outlined">content_copy</span> Aplicar a selección (<span id="metaBatchCount">0</span>)</button>
                 </div>
                 <div class="rp-section">
-                    <h4>Campos personalizados <button class="btn btn-xs btn-ghost" id="btnAddMetaField"><span class="material-symbols-outlined">add</span></button></h4>
+                    <h4>Campos personalizados <button class="btn btn-xs btn-ghost" id="btnAddMetaField"><span class="material-symbols-outlined">add</span></button> <button class="info-btn" data-info="Define campos propios a nivel del proyecto. Por ejemplo: 'Técnica fotográfica' (texto), 'Género' (selección múltiple), 'URL fuente' (URL). Se aplican a todas las imágenes.">i</button></h4>
                     <div id="customMetaFields"></div>
                 </div>
             </div>
 
             <!-- Tags -->
             <div class="rpanel-content" id="rpTags">
-                <div class="tag-input-row">
-                    <input type="text" id="tagInput" placeholder="Nueva etiqueta..." class="tag-input">
-                    <button class="btn btn-xs btn-accent" id="btnAddTag"><span class="material-symbols-outlined">add</span></button>
+                <div class="scope-indicator" id="tagScope"></div>
+                <div class="rp-section">
+                    <h4>Etiquetas de esta imagen <button class="info-btn" data-info="Las etiquetas se aplican a la imagen activa. Para etiquetar varias a la vez: selecciónalas con ⌘/Ctrl+clic en la galería y usa el botón 'Etiquetar' en la barra de selección, o el botón 'Aplicar a selección' abajo.">i</button></h4>
+                    <div class="tag-input-row">
+                        <input type="text" id="tagInput" placeholder="Escribir etiqueta..." class="tag-input">
+                        <button class="btn btn-xs btn-accent" id="btnAddTag"><span class="material-symbols-outlined">add</span></button>
+                    </div>
+                    <div class="tags-cloud" id="tagsCloud"></div>
+                    <button class="btn btn-xs btn-ghost hidden" id="btnTagBatch" style="margin-top:4px"><span class="material-symbols-outlined">content_copy</span> Aplicar etiquetas a selección (<span id="tagBatchCount">0</span>)</button>
                 </div>
-                <div class="tags-cloud" id="tagsCloud"></div>
-                <div class="rp-section"><h4>Etiquetas del corpus</h4><div id="corpusTags"></div></div>
+                <div class="rp-section">
+                    <h4>Todas las etiquetas del corpus <button class="info-btn" data-info="Vista panorámica de todas las etiquetas usadas en el corpus. El número indica cuántas imágenes tienen esa etiqueta. Clic en una para filtrar.">i</button></h4>
+                    <div id="corpusTags"></div>
+                </div>
             </div>
 
             <!-- Chains -->
             <div class="rpanel-content" id="rpChains">
-                <p class="rp-hint">Cadenas analíticas vinculan anotaciones de distintas imágenes como instancias del mismo fenómeno.</p>
-                <button class="btn btn-xs btn-accent" id="btnNewChain" style="margin-bottom:8px"><span class="material-symbols-outlined">add_link</span> Nueva cadena</button>
-                <div id="chainsList"></div>
+                <div class="rp-section">
+                    <h4>Cadenas analíticas <button class="info-btn" data-info="Una cadena agrupa anotaciones de distintas imágenes como instancias del mismo fenómeno. Crea una cadena, luego vincula anotaciones desde cualquier imagen. Usa la vista Concordancia (C) para ver todas las instancias alineadas.">i</button></h4>
+                    <button class="btn btn-xs btn-accent" id="btnNewChain" style="margin-bottom:8px"><span class="material-symbols-outlined">add_link</span> Nueva cadena</button>
+                    <div id="chainsList"></div>
+                </div>
             </div>
 
             <!-- Search -->
             <div class="rpanel-content" id="rpSearch">
-                <div class="search-builder" id="searchBuilder">
-                    <div class="search-row">
-                        <select class="search-field" id="searchField">
-                            <option value="annotation">Texto de anotación</option>
-                            <option value="description">Descripción</option>
-                            <option value="interpretation">Interpretación</option>
-                            <option value="memo">Memo</option>
-                            <option value="tag">Etiqueta</option>
-                            <option value="category">Categoría</option>
-                            <option value="generalNotes">Notas generales</option>
-                            <option value="meta">Metadato</option>
-                            <option value="collection">Colección</option>
-                        </select>
-                        <input type="text" id="searchValue" placeholder="Buscar..." class="search-input">
+                <div class="rp-section">
+                    <h4>Búsqueda en el corpus <button class="info-btn" data-info="Busca por cualquier campo a través de todo el corpus (o la colección activa). Selecciona el tipo de campo y escribe el término. Los resultados muestran coincidencias resaltadas. Clic en un resultado abre esa imagen.">i</button></h4>
+                    <div class="search-builder" id="searchBuilder">
+                        <div class="search-row">
+                            <select class="search-field" id="searchField">
+                                <option value="annotation">Texto de anotación</option>
+                                <option value="description">Descripción</option>
+                                <option value="interpretation">Interpretación</option>
+                                <option value="memo">Memo</option>
+                                <option value="tag">Etiqueta</option>
+                                <option value="category">Categoría</option>
+                                <option value="generalNotes">Notas generales</option>
+                                <option value="meta">Metadato</option>
+                                <option value="collection">Colección</option>
+                            </select>
+                            <input type="text" id="searchValue" placeholder="Buscar..." class="search-input">
+                        </div>
+                        <button class="btn btn-xs btn-accent" id="btnSearch" style="margin-top:6px"><span class="material-symbols-outlined">search</span> Buscar</button>
                     </div>
-                    <button class="btn btn-xs btn-accent" id="btnSearch" style="margin-top:6px"><span class="material-symbols-outlined">search</span> Buscar</button>
+                    <div id="searchResults" style="margin-top:8px"></div>
                 </div>
-                <div id="searchResults" style="margin-top:8px"></div>
             </div>
         </aside>
     </main>
