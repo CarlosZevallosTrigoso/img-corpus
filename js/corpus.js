@@ -49,9 +49,16 @@ function initFileInput() {
                 if (loaded === files.length) {
                     IC.renderGallery();
                     IC.renderCorpusTags();
+                    if (IC.state.viewMode === 'grid') {
+                        IC.renderGridView();
+                    }
                     // Select first image if none selected
                     if (!IC.state.currentImageId && IC.state.images.length > 0) {
-                        selectImage(IC.state.images[0].id);
+                        if (IC.state.viewMode === 'single') {
+                            selectImage(IC.state.images[0].id);
+                        } else {
+                            IC.state.currentImageId = IC.state.images[0].id;
+                        }
                     }
                 }
             };
