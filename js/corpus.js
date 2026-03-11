@@ -22,7 +22,8 @@ function sortAlpha() {
 }
 
 function initSortButton() {
-    document.getElementById('btnSortAlpha').addEventListener('click', sortAlpha);
+    var btn = document.getElementById('btnSortAlpha');
+    if (btn) btn.addEventListener('click', sortAlpha);
 }
 
 // ========== LOAD FILES ==========
