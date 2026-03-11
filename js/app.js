@@ -222,10 +222,8 @@ IC.initCategoryUI = function() {
         IC.pushUndo();
         const newCat = { id: 'cat-' + IC.uid(), name, color };
         IC.state.categories.push(newCat);
-        // Auto-select as active if it's the first or no active category
-        if (!IC.state.activeCategory || !IC.state.categories.find(c => c.id === IC.state.activeCategory)) {
-            IC.state.activeCategory = newCat.id;
-        }
+        // Always switch to newly created category
+        IC.state.activeCategory = newCat.id;
         IC.renderCategories();
         IC.updateCategorySelects();
         IC.closeModal('modalAddCategory');
@@ -367,12 +365,17 @@ IC.initKeyboard = function() {
             case 'v': IC.setTool('select'); break;
             case 'r': IC.setTool('rect'); break;
             case 'e': IC.setTool('ellipse'); break;
+            case 'p': IC.setTool('polygon'); break;
             case 'd': IC.setTool('freedraw'); break;
             case 'a': IC.setTool('arrow'); break;
+            case 't': IC.setTool('text'); break;
             case 'm': IC.setTool('marker'); break;
             case 'delete':
             case 'backspace':
                 if (IC.deleteSelectedAnnotation) IC.deleteSelectedAnnotation();
+                break;
+            case 'escape':
+                IC.setTool('select');
                 break;
             case '=':
             case '+': if (IC.zoomIn) IC.zoomIn(); break;
