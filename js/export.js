@@ -22,6 +22,7 @@ IC.exportSession = function() {
         version: '1.0',
         exportDate: new Date().toISOString(),
         sessionName: IC.state.sessionName,
+        canvasBg: IC.state.canvasBg,
         categories: IC.state.categories,
         images: targetImages.map(img => ({
             id: img.id,
@@ -63,6 +64,7 @@ function importSession(file) {
             IC.state.images = session.images;
             IC.state.categories = session.categories || IC.state.categories;
             IC.state.sessionName = session.sessionName || 'Sesión importada';
+            IC.state.canvasBg = session.canvasBg || '#111118';
             IC.state.currentImageId = IC.state.images.length > 0 ? IC.state.images[0].id : null;
 
             document.getElementById('sessionName').textContent = IC.state.sessionName;
