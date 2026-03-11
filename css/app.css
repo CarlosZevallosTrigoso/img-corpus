@@ -255,6 +255,23 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;color:inherit
 
 /* STRUCTURED ANNOTATION */
 .ann-item{background:var(--bg-elev);border:1px solid var(--brd);border-radius:var(--r-m);padding:7px;border-left:3px solid var(--ac);margin-bottom:6px;transition:border-color .12s}
+
+/* Note items */
+.note-item{background:var(--bg-elev);border:1px solid var(--brd);border-radius:var(--r-s);padding:6px;margin-bottom:4px}
+.note-item-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.note-item-label{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.3px}
+.note-item-rm{background:none;border:none;color:var(--t3);cursor:pointer;font-size:14px;padding:0;line-height:1}
+.note-item-rm:hover{color:var(--danger)}
+
+/* Level items */
+.level-item{display:flex;align-items:center;gap:5px;padding:3px 4px;border-radius:var(--r-s);margin-bottom:2px}
+.level-item:hover{background:var(--bg-hover)}
+.level-name{flex:1;font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:var(--r-s);outline:none;cursor:text}
+.level-name:hover{border-color:var(--brd)}
+.level-name:focus{border-color:var(--ac);background:var(--bg-elev)}
+.level-rm{background:none;border:none;color:var(--t3);cursor:pointer;font-size:14px;padding:0;opacity:0;transition:opacity .1s}
+.level-item:hover .level-rm{opacity:1}
+.level-rm:hover{color:var(--danger)}
 .ann-item:hover{border-color:var(--brd-m)}.ann-item.selected{border-color:var(--ac);background:var(--ac-dim)}
 .ann-hdr{display:flex;align-items:center;gap:5px;margin-bottom:4px}
 .ann-num{font-family:var(--fm);font-size:10px;font-weight:700;background:var(--ac);color:var(--t-inv);width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
