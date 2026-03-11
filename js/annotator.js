@@ -17,10 +17,39 @@ IC.initCanvas=function(){
     canvas.on('path:created',function(o){if(IC.state.activeTool==='freedraw')finalize(o.path)});
     canvas.on('object:modified',function(o){var obj=o.target;if(obj&&obj.annotationId&&!obj._isBadge){reposBadge(obj);IC.saveCurrentCanvasState()}});
     canvas.on('mouse:wheel',function(o){var z=canvas.getZoom()*(0.999**o.e.deltaY);z=Math.min(Math.max(.1,z),10);canvas.zoomToPoint({x:o.e.offsetX,y:o.e.offsetY},z);currentZoom=z;updZoom();o.e.preventDefault();o.e.stopPropagation()});
-    var pan=false,ps=null;
-    canvas.on('mouse:down',function(o){if(o.e.altKey||o.e.button===1){pan=true;ps={x:o.e.clientX,y:o.e.clientY};canvas.defaultCursor='grabbing';canvas.selection=false}});
+
+    // Pan: Alt+drag, middle-click, or Space+drag
+    var pan=false,ps=null,spacePan=false;
+    canvas.on('mouse:down',function(o){if(o.e.altKey||o.e.button===1||spacePan){pan=true;ps={x:o.e.clientX,y:o.e.clientY};var wrap=document.getElementById('canvasContainer');wrap.classList.add('panning-active');canvas.selection=false}});
     canvas.on('mouse:move',function(o){if(!pan)return;var v=canvas.viewportTransform;v[4]+=o.e.clientX-ps.x;v[5]+=o.e.clientY-ps.y;ps={x:o.e.clientX,y:o.e.clientY};canvas.requestRenderAll()});
-    canvas.on('mouse:up',function(){if(pan){pan=false;IC.applyTool(IC.state.activeTool)}});
+    canvas.on('mouse:up',function(){if(pan){pan=false;var wrap=document.getElementById('canvasContainer');wrap.classList.remove('panning-active');if(!spacePan)IC.applyTool(IC.state.activeTool)}});
+
+    // Space key hold for pan
+    document.addEventListener('keydown',function(e){
+        if(e.code==='Space'&&!e.repeat&&!isInputFocused()){
+            e.preventDefault();spacePan=true;
+            var wrap=document.getElementById('canvasContainer');wrap.classList.add('panning');
+            canvas.selection=false;canvas.forEachObject(function(o){o.selectable=false});
+        }
+    });
+    document.addEventListener('keyup',function(e){
+        if(e.code==='Space'&&spacePan){
+            spacePan=false;
+            var wrap=document.getElementById('canvasContainer');wrap.classList.remove('panning');wrap.classList.remove('panning-active');
+            IC.applyTool(IC.state.activeTool);
+        }
+    });
+    function isInputFocused(){var t=document.activeElement;if(!t)return false;var tn=t.tagName.toLowerCase();return tn==='input'||tn==='textarea'||tn==='select'||t.isContentEditable}
+
+    // Hover highlight: canvas → panel
+    canvas.on('mouse:over',function(o){
+        if(o.target&&o.target.annotationId&&!o.target._isBadge){
+            document.querySelectorAll('.ann-item').forEach(function(el){el.classList.toggle('hover-highlight',el.dataset.ann===o.target.annotationId)});
+        }
+    });
+    canvas.on('mouse:out',function(){
+        document.querySelectorAll('.ann-item.hover-highlight').forEach(function(el){el.classList.remove('hover-highlight')});
+    });
 };
 
 IC.loadImageToCanvas=function(d){

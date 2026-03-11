@@ -144,13 +144,34 @@ IC.renderGallery = function() {
         if (IC.state.batchSelected.has(img.id)) cl.push('selected');
         var globalIdx = IC.state.images.indexOf(img) + 1;
 
+        // Status badges
+        var status = '';
+        var annCats = [];
+        (img.annotations || []).forEach(function(a) {
+            if (annCats.indexOf(a.categoryId) < 0) annCats.push(a.categoryId);
+        });
+        var dots = annCats.slice(0, 4).map(function(cid) {
+            return '<span class="item-status-dot" style="background:' + IC.getCategoryColor(cid) + '"></span>';
+        }).join('');
+        var icons = '';
+        if ((img.tags || []).length) icons += '<span class="item-status-icon material-symbols-outlined">label</span>';
+        if (img.generalNotes) icons += '<span class="item-status-icon material-symbols-outlined">notes</span>';
+        if ((img.collectionIds || []).length) icons += '<span class="item-status-icon material-symbols-outlined">folder</span>';
+        status = dots || icons ? '<div class="item-status">' + dots + icons + '</div>' : '';
+
         return '<div class="' + cl.join(' ') + '" data-id="' + img.id + '" draggable="true">' +
             '<img src="' + img.dataUrl + '" loading="lazy" draggable="false">' +
             '<span class="item-idx">' + globalIdx + '</span>' +
+            status +
             '<div class="batch-ck"></div>' +
             '<button class="item-remove" data-id="' + img.id + '">&times;</button>' +
         '</div>';
     }).join('');
+
+    // Apply thumbnail size
+    if (IC.state.thumbSize) {
+        g.style.gridTemplateColumns = 'repeat(auto-fill, minmax(' + IC.state.thumbSize + 'px, 1fr))';
+    }
 
     // Click handlers
     g.querySelectorAll('.gallery-item').forEach(function(el) {
