@@ -63,7 +63,6 @@ function initFileInput() {
             };
             reader.readAsDataURL(file);
         });
-        });
 
         // Reset input
         fileInput.value = '';
