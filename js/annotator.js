@@ -536,7 +536,8 @@ IC.renderAnnotationsPanel = function(img) {
     const container = document.getElementById('annotationsList');
     const countEl = document.getElementById('annotationCount');
 
-    document.getElementById('generalNotes').value = img.generalNotes || '';
+    // Refresh general notes display
+    if (IC.refreshGeneralNotes) IC.refreshGeneralNotes();
 
     if (!img.annotations || img.annotations.length === 0) {
         container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;padding:8px 0;">Sin anotaciones. Usa las herramientas para anotar la imagen.</p>';
@@ -548,10 +549,15 @@ IC.renderAnnotationsPanel = function(img) {
 
     container.innerHTML = img.annotations.map(ann => {
         const cat = IC.getCategoryById(ann.categoryId);
-        const catColor = cat ? cat.color : '#4ecdc4';
+        const catColor = cat ? cat.color : '#888888';
         const catOptions = IC.state.categories.map(c =>
             `<option value="${c.id}" ${c.id === ann.categoryId ? 'selected' : ''}>${c.name}</option>`
         ).join('');
+
+        const noteText = ann.note || '';
+        const isEmpty = !noteText.trim();
+        const displayText = isEmpty ? 'Clic para anotar...' : escHtml(noteText);
+        const emptyClass = isEmpty ? ' empty' : '';
 
         return `
         <div class="annotation-item" data-ann-id="${ann.id}" style="border-left-color:${catColor}">
@@ -564,18 +570,57 @@ IC.renderAnnotationsPanel = function(img) {
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <textarea class="annotation-note" data-ann-id="${ann.id}" placeholder="Nota para esta anotación...">${ann.note || ''}</textarea>
+            <div class="note-display${emptyClass}" data-ann-id="${ann.id}">${displayText}</div>
+            <textarea class="annotation-note hidden" data-ann-id="${ann.id}" placeholder="Nota para esta anotación...">${escHtml(noteText)}</textarea>
+            <div class="note-edit-hint">Enter para guardar · Shift+Enter para salto de línea</div>
         </div>`;
     }).join('');
 
-    // Event listeners
+    // Note display → click to edit
+    container.querySelectorAll('.note-display').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const annId = el.dataset.annId;
+            const textarea = container.querySelector(`textarea.annotation-note[data-ann-id="${annId}"]`);
+            const hint = el.nextElementSibling.nextElementSibling; // hint div
+            el.classList.add('hidden');
+            textarea.classList.remove('hidden');
+            hint.style.display = 'block';
+            textarea.focus();
+        });
+    });
+
+    // Textarea → Enter to save, blur to save
     container.querySelectorAll('.annotation-note').forEach(el => {
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                el.blur();
+            }
+        });
+
+        el.addEventListener('blur', (e) => {
+            const annId = e.target.dataset.annId;
+            const ann = img.annotations.find(a => a.id === annId);
+            if (ann) ann.note = e.target.value;
+            IC.saveCurrentCanvasState();
+
+            // Collapse back to display
+            const display = container.querySelector(`.note-display[data-ann-id="${annId}"]`);
+            const hint = e.target.nextElementSibling;
+            if (display) {
+                const text = e.target.value.trim();
+                display.textContent = text || 'Clic para anotar...';
+                display.classList.toggle('empty', !text);
+                display.classList.remove('hidden');
+            }
+            e.target.classList.add('hidden');
+            if (hint) hint.style.display = 'none';
+        });
+
         el.addEventListener('input', (e) => {
             const ann = img.annotations.find(a => a.id === e.target.dataset.annId);
             if (ann) ann.note = e.target.value;
-        });
-        el.addEventListener('blur', () => {
-            IC.saveCurrentCanvasState();
         });
     });
 
@@ -597,7 +642,6 @@ IC.renderAnnotationsPanel = function(img) {
         el.addEventListener('click', (e) => {
             const annId = el.dataset.annId;
             IC.pushUndo();
-            // Remove from canvas
             if (canvas) {
                 canvas.getObjects().filter(o => o.annotationId === annId).forEach(o => canvas.remove(o));
                 canvas.renderAll();
@@ -608,10 +652,10 @@ IC.renderAnnotationsPanel = function(img) {
         });
     });
 
-    // Click to select on canvas
+    // Click annotation item to select on canvas
     container.querySelectorAll('.annotation-item').forEach(el => {
         el.addEventListener('click', (e) => {
-            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+            if (e.target.closest('.note-display') || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
             const annId = el.dataset.annId;
             if (!canvas) return;
             const obj = canvas.getObjects().find(o => o.annotationId === annId && !o.isBadge);
@@ -645,13 +689,58 @@ function updateAnnotationColor(annId, catId) {
     IC.saveCurrentCanvasState();
 }
 
-// ========== GENERAL NOTES ==========
+// ========== GENERAL NOTES (display/edit pattern) ==========
 document.addEventListener('DOMContentLoaded', () => {
-    const notesEl = document.getElementById('generalNotes');
-    notesEl.addEventListener('input', () => {
+    const display = document.getElementById('generalNotesDisplay');
+    const textarea = document.getElementById('generalNotes');
+    const hint = document.getElementById('generalNotesHint');
+
+    function showGeneralNotesDisplay() {
         const img = IC.getCurrentImage();
-        if (img) img.generalNotes = notesEl.value;
+        const text = img ? (img.generalNotes || '') : '';
+        textarea.classList.add('hidden');
+        hint.style.display = 'none';
+        display.classList.remove('hidden');
+        if (text.trim()) {
+            display.textContent = text;
+            display.classList.remove('empty');
+        } else {
+            display.textContent = 'Clic para agregar notas...';
+            display.classList.add('empty');
+        }
+    }
+
+    display.addEventListener('click', () => {
+        const img = IC.getCurrentImage();
+        if (!img) return;
+        display.classList.add('hidden');
+        textarea.classList.remove('hidden');
+        hint.style.display = 'block';
+        textarea.value = img.generalNotes || '';
+        textarea.focus();
     });
+
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            textarea.blur();
+        }
+    });
+
+    textarea.addEventListener('blur', () => {
+        const img = IC.getCurrentImage();
+        if (img) img.generalNotes = textarea.value;
+        IC.saveCurrentCanvasState();
+        showGeneralNotesDisplay();
+    });
+
+    textarea.addEventListener('input', () => {
+        const img = IC.getCurrentImage();
+        if (img) img.generalNotes = textarea.value;
+    });
+
+    // Expose for use when switching images
+    IC.refreshGeneralNotes = showGeneralNotesDisplay;
 });
 
 // ========== EXPORT CANVAS AS IMAGE ==========
@@ -666,6 +755,11 @@ function colorAlpha(hex, alpha) {
     const g = parseInt(hex.slice(3,5), 16);
     const b = parseInt(hex.slice(5,7), 16);
     return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 })();
