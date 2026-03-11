@@ -73,10 +73,18 @@ function loadFiles(files) {
 
 // ========== FILE INPUT ==========
 function initFileInput() {
-    document.getElementById('fileInput').addEventListener('change', function(e) {
+    var fileInput = document.getElementById('fileInput');
+    fileInput.addEventListener('change', function(e) {
         loadFiles(e.target.files);
         e.target.value = '';
     });
+
+    var btn = document.getElementById('btnAddImages');
+    if (btn) {
+        btn.addEventListener('click', function() {
+            fileInput.click();
+        });
+    }
 }
 
 // ========== DRAG-DROP FILES ==========
@@ -120,7 +128,8 @@ IC.renderGallery = function() {
     if (!visible.length) {
         g.innerHTML = '';
         empty.classList.remove('hidden');
-        empty.querySelector('p').textContent = IC.state.activeCollectionId
+        var p = empty.querySelector('p');
+        if (p) p.textContent = IC.state.activeCollectionId
             ? 'Colección vacía. Asigna imágenes desde "Colecciones".'
             : 'Arrastra imágenes aquí';
         return;
