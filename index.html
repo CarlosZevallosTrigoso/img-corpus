@@ -47,19 +47,26 @@
                 <div class="side-header">
                     <div class="side-header-actions">
                         <button class="btn btn-xs btn-ghost" id="btnSortAlpha" title="Ordenar A-Z"><span class="material-symbols-outlined">sort_by_alpha</span></button>
-                        <button class="btn btn-xs btn-ghost" id="btnBatchMode" title="Modo batch"><span class="material-symbols-outlined">checklist</span></button>
                         <button class="btn btn-xs btn-accent" title="Agregar imágenes" id="btnAddImages">
                             <span class="material-symbols-outlined">add_photo_alternate</span>
                         </button>
                         <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
                     </div>
                 </div>
-                <div class="batch-bar hidden" id="batchBar">
-                    <span class="batch-info"><span id="batchCount">0</span> sel.</span>
-                    <button class="btn btn-xs btn-ghost" id="btnBatchAll">Todas</button>
-                    <button class="btn btn-xs btn-ghost" id="btnBatchNone">Ninguna</button>
-                    <button class="btn btn-xs btn-accent" id="btnBatchTag"><span class="material-symbols-outlined">label</span></button>
-                    <button class="btn btn-xs btn-danger" id="btnBatchDelete"><span class="material-symbols-outlined">delete</span></button>
+                <div class="sel-bar hidden" id="selBar">
+                    <span class="sel-info"><span id="selCount">0</span> sel.</span>
+                    <button class="btn btn-xs btn-ghost" id="btnSelAll" title="Todas">Todas</button>
+                    <button class="btn btn-xs btn-ghost" id="btnSelNone" title="Ninguna">Ninguna</button>
+                    <span class="sel-sep"></span>
+                    <button class="btn btn-xs btn-accent" id="btnSelToCollection" title="Añadir a colección">
+                        <span class="material-symbols-outlined">folder_copy</span> A colección
+                    </button>
+                    <button class="btn btn-xs btn-accent" id="btnSelNewCollection" title="Crear colección con selección">
+                        <span class="material-symbols-outlined">create_new_folder</span> Nueva
+                    </button>
+                    <span class="sel-sep"></span>
+                    <button class="btn btn-xs btn-ghost" id="btnSelTag" title="Etiquetar"><span class="material-symbols-outlined">label</span></button>
+                    <button class="btn btn-xs btn-danger" id="btnSelDelete" title="Eliminar"><span class="material-symbols-outlined">delete</span></button>
                 </div>
                 <div class="coll-filter-bar hidden" id="collFilterBar">
                     <span class="material-symbols-outlined" style="font-size:14px">filter_alt</span>
@@ -72,6 +79,7 @@
                         <span class="material-symbols-outlined">collections</span>
                         <p>Arrastra imágenes aquí</p>
                     </div>
+                    <div class="gallery-hint" id="galleryHint">⌘/Ctrl+clic para seleccionar varias</div>
                 </div>
                 <!-- Categories -->
                 <div class="side-section">
@@ -338,6 +346,21 @@
             <div class="modal-hdr"><h3>Etiquetar selección</h3><button class="modal-x">&times;</button></div>
             <div class="modal-body"><input type="text" id="batchTagInput" placeholder="Etiquetas separadas por coma..." class="tag-input" style="width:100%"></div>
             <div class="modal-foot"><button class="btn btn-ghost modal-x">Cancelar</button><button class="btn btn-primary" id="btnBatchTagApply">Aplicar</button></div>
+        </div>
+    </div>
+
+    <!-- Assign to collection modal -->
+    <div class="modal-overlay" id="modalAssignColl">
+        <div class="modal">
+            <div class="modal-hdr"><h3>Añadir a colección</h3><button class="modal-x">&times;</button></div>
+            <div class="modal-body">
+                <div id="assignCollList" style="max-height:300px;overflow-y:auto"></div>
+                <p class="rp-hint" style="margin-top:8px">Selecciona una colección, o crea una nueva.</p>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost modal-x">Cancelar</button>
+                <button class="btn btn-accent" id="btnAssignCollNew"><span class="material-symbols-outlined">create_new_folder</span> Crear nueva</button>
+            </div>
         </div>
     </div>
 
