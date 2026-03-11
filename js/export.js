@@ -1,530 +1,259 @@
 /* ========================================
-   IMG-CORPUS \u2014 Export
-   Report generation, PDF, JSON session
+   IMG-CORPUS V2 — Export
+   Session, reports, crops, qualitative JSON
    ======================================== */
+(function(){
 
-(function() {
-
-IC.initExport = function() {
-    initImportExport();
-    initReportButtons();
+IC.initExport=function(){
+    document.getElementById('importFileInput').addEventListener('change',function(e){if(e.target.files.length){importSession(e.target.files[0]);e.target.value=''}});
+    document.getElementById('btnRptHTML').addEventListener('click',function(){IC.closeModal('modalReport');genReport('html')});
+    document.getElementById('btnRptPDF').addEventListener('click',function(){IC.closeModal('modalReport');genReport('pdf')});
+    document.getElementById('btnRptJSON').addEventListener('click',function(){IC.closeModal('modalReport');exportQualJSON()});
+    document.getElementById('btnRptCrops').addEventListener('click',function(){IC.closeModal('modalReport');exportCrops()});
 };
 
 // ========== SESSION EXPORT ==========
-IC.exportSession = function() {
-    // Save current canvas state first
-    IC.saveCurrentCanvasState();
-
-    const targetImages = IC.getTargetImages();
-    const isPartial = targetImages.length < IC.state.images.length;
-
-    const session = {
-        version: '1.0',
-        exportDate: new Date().toISOString(),
-        sessionName: IC.state.sessionName,
-        canvasBg: IC.state.canvasBg,
-        categories: IC.state.categories,
-        images: targetImages.map(img => ({
-            id: img.id,
-            name: img.name,
-            dataUrl: img.dataUrl,
-            metadata: img.metadata,
-            tags: img.tags,
-            generalNotes: img.generalNotes,
-            annotations: img.annotations,
-            canvasObjects: img.canvasObjects || [],
-        })),
+IC.exportSession=function(){
+    if(IC.saveCurrentCanvasState)IC.saveCurrentCanvasState();
+    var session={version:'2.0',exportDate:new Date().toISOString(),sessionName:IC.state.sessionName,canvasBg:IC.state.canvasBg,
+        categories:IC.state.categories,collections:IC.state.collections,chains:IC.state.chains,
+        diary:IC.state.diary,auditLog:IC.state.auditLog,customMetaSchema:IC.state.customMetaSchema,
+        images:IC.getTargetImages().map(function(i){return{id:i.id,name:i.name,dataUrl:i.dataUrl,metadata:i.metadata,tags:i.tags,generalNotes:i.generalNotes,annotations:i.annotations,relations:i.relations,canvasObjects:i.canvasObjects||[],collectionIds:i.collectionIds||[]}})
     };
-
-    const json = JSON.stringify(session, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    const safeName = IC.state.sessionName.replace(/[^a-zA-Z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\s-]/g, '').replace(/\s+/g, '-');
-    const suffix = isPartial ? `_${targetImages.length}-imgs` : '';
-    a.download = `img-corpus_${safeName}${suffix}_${dateStamp()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    var blob=new Blob([JSON.stringify(session,null,2)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='img-corpus_'+IC.state.sessionName.replace(/[^a-zA-Z0-9áéíóúñü\s-]/g,'').replace(/\s+/g,'-')+'_'+ds()+'.json';
+    a.click();URL.revokeObjectURL(a.href);
 };
 
-// ========== SESSION IMPORT ==========
-function importSession(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const session = JSON.parse(e.target.result);
-            if (!session.images || !Array.isArray(session.images)) {
-                alert('Archivo de sesi\u00f3n inv\u00e1lido.');
-                return;
-            }
-
+function importSession(file){
+    var r=new FileReader();
+    r.onload=function(e){
+        try{
+            var s=JSON.parse(e.target.result);if(!s.images||!Array.isArray(s.images)){alert('Archivo inválido.');return}
             IC.pushUndo();
-            IC.state.images = session.images;
-            IC.state.categories = session.categories || IC.state.categories;
-            IC.state.sessionName = session.sessionName || 'Sesi\u00f3n importada';
-            IC.state.canvasBg = session.canvasBg || '#111118';
-            IC.state.currentImageId = IC.state.images.length > 0 ? IC.state.images[0].id : null;
-
-            document.getElementById('sessionName').textContent = IC.state.sessionName;
-            IC.refreshAll();
-
-            if (IC.state.currentImageId) {
-                IC.selectImage(IC.state.currentImageId);
-            } else {
-                IC.showCanvasEmpty(true);
-            }
-
-        } catch (err) {
-            alert('Error al leer el archivo: ' + err.message);
-        }
+            IC.state.images=s.images;IC.state.categories=s.categories||[];IC.state.collections=s.collections||[];
+            IC.state.chains=s.chains||[];IC.state.diary=s.diary||[];IC.state.auditLog=s.auditLog||[];
+            IC.state.customMetaSchema=s.customMetaSchema||[];IC.state.canvasBg=s.canvasBg||'#111118';
+            IC.state.sessionName=s.sessionName||'Sesión importada';
+            IC.state.currentImageId=IC.state.images.length?IC.state.images[0].id:null;
+            document.getElementById('sessionName').textContent=IC.state.sessionName;
+            IC.log('Sesión importada: '+IC.state.images.length+' imágenes');
+            IC.refreshAll();if(IC.state.currentImageId)IC.selectImage(IC.state.currentImageId);else IC.showCanvasEmpty(true);
+        }catch(err){alert('Error: '+err.message)}
     };
-    reader.readAsText(file);
+    r.readAsText(file);
 }
 
-function initImportExport() {
-    const importInput = document.getElementById('importFileInput');
-    importInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            importSession(e.target.files[0]);
-            importInput.value = '';
-        }
-    });
+// ========== REPORT MODAL ==========
+IC.openReportModal=function(){
+    if(IC.populateReportCollections)IC.populateReportCollections();
+    // Update scope info
+    var scope=document.getElementById('reportScope');
+    var hasSel=IC.state.batchMode&&IC.state.batchSelected.size>0;
+    if(hasSel) scope.innerHTML='<strong>'+IC.state.batchSelected.size+'</strong> imágenes seleccionadas en batch.';
+    else scope.innerHTML='Se incluirán todas las <strong>'+IC.state.images.length+'</strong> imágenes (o elige una colección abajo).';
+    IC.openModal('modalReport');
+};
+
+function getScopedImages(){
+    var collId=document.getElementById('reportCollection').value;
+    if(collId&&IC.getCollectionImages) return IC.getCollectionImages(collId);
+    if(IC.state.batchMode&&IC.state.batchSelected.size>0) return IC.state.images.filter(function(i){return IC.state.batchSelected.has(i.id)});
+    return IC.state.images.slice();
 }
 
-// ========== REPORT GENERATION ==========
-function initReportButtons() {
-    document.getElementById('btnReportHTML').addEventListener('click', () => {
-        IC.closeModal('modalReport');
-        generateReport('html');
-    });
-
-    document.getElementById('btnReportPDF').addEventListener('click', () => {
-        IC.closeModal('modalReport');
-        generateReport('pdf');
-    });
-}
-
-async function generateReport(format) {
-    // Save current state
-    IC.saveCurrentCanvasState();
-
-    const opts = {
-        includeAnnotations: document.getElementById('reportIncludeAnnotations').checked,
-        includeNotes: document.getElementById('reportIncludeNotes').checked,
-        includeMetadata: document.getElementById('reportIncludeMetadata').checked,
-        includeTags: document.getElementById('reportIncludeTags').checked,
-        title: document.getElementById('reportTitle').value || 'An\u00e1lisis de corpus visual',
-        author: document.getElementById('reportAuthor').value || '',
+// ========== HTML REPORT ==========
+function genReport(fmt){
+    if(IC.saveCurrentCanvasState)IC.saveCurrentCanvasState();
+    var imgs=getScopedImages();
+    var opts={
+        annotations:document.getElementById('rptAnnotations').checked,
+        description:document.getElementById('rptDescription').checked,
+        interpretation:document.getElementById('rptInterpretation').checked,
+        memo:document.getElementById('rptMemo').checked,
+        relations:document.getElementById('rptRelations').checked,
+        chains:document.getElementById('rptChains').checked,
+        meta:document.getElementById('rptMeta').checked,
+        tags:document.getElementById('rptTags').checked,
+        notes:document.getElementById('rptNotes').checked,
+        title:document.getElementById('rptTitle').value||'Análisis de corpus visual',
+        author:document.getElementById('rptAuthor').value||'',
     };
-
-    // Generate canvas snapshots for scoped images
-    const scopedImages = IC.getScopedImages();
-    const imageSnapshots = [];
-
-    for (const img of scopedImages) {
-        let snapshot = img.dataUrl;
-
-        if (opts.includeAnnotations && img.canvasObjects && img.canvasObjects.length > 0) {
-            if (img.id === IC.state.currentImageId && IC.canvas) {
-                snapshot = IC.canvas.toDataURL({ format: 'png', multiplier: 1.5 });
-            } else {
-                // Render offscreen
-                snapshot = await renderOffscreen(img);
-            }
-        }
-
-        imageSnapshots.push({ img, snapshot });
-    }
-
-    const html = buildReportHTML(imageSnapshots, opts);
-
-    if (format === 'html') {
-        downloadHTML(html, opts.title);
-    } else {
-        downloadPDFFromHTML(html, opts.title);
-    }
+    var html=buildHTML(imgs,opts);
+    if(fmt==='html')dlHTML(html,opts.title);
+    else{var w=window.open('','_blank');if(!w){alert('Permite popups.');return}w.document.write(html);w.document.close();setTimeout(function(){w.print()},800)}
 }
 
-function renderOffscreen(imgData) {
-    return new Promise((resolve) => {
-        // Create temp canvas
-        const tempCanvasEl = document.createElement('canvas');
-        tempCanvasEl.id = 'offscreen_' + Date.now();
-        tempCanvasEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;';
-        document.body.appendChild(tempCanvasEl);
+function buildHTML(imgs,o){
+    var date=new Date().toLocaleDateString('es-PE',{year:'numeric',month:'long',day:'numeric'});
+    var body=imgs.map(function(img,idx){
+        var num=idx+1;
+        var s='<div class="img-section"><h3>Imagen '+num+': '+esc(img.name)+'</h3>';
+        s+='<div class="img-frame"><img src="'+img.dataUrl+'"></div>';
 
-        const tempCanvas = new fabric.StaticCanvas(tempCanvasEl, {
-            width: 900,
-            height: 600,
-            backgroundColor: '#111118',
+        if(o.meta){
+            var fields=[];
+            if(img.metadata.source)fields.push(['Fuente',img.metadata.source]);
+            if(img.metadata.author)fields.push(['Autor',img.metadata.author]);
+            if(img.metadata.date)fields.push(['Fecha',img.metadata.date]);
+            if(img.metadata.medium)fields.push(['Medio',img.metadata.medium]);
+            if(img.metadata.context)fields.push(['Contexto',img.metadata.context]);
+            IC.state.customMetaSchema.forEach(function(f){var v=img.metadata['_'+f.id];if(v)fields.push([f.name,v])});
+            if(fields.length) s+='<table class="meta-tbl">'+fields.map(function(f){return'<tr><td class="ml">'+esc(f[0])+'</td><td>'+esc(f[1])+'</td></tr>'}).join('')+'</table>';
+        }
+        if(o.tags&&img.tags&&img.tags.length) s+='<div class="tags-row">'+img.tags.map(function(t){return'<span class="tag">'+esc(t)+'</span>'}).join(' ')+'</div>';
+        if(o.notes&&img.generalNotes) s+='<div class="gen-notes"><strong>Notas generales:</strong><br>'+esc(img.generalNotes).replace(/\n/g,'<br>')+'</div>';
+
+        if(o.annotations&&img.annotations&&img.annotations.length){
+            s+='<div class="anns-block"><h4>Anotaciones</h4>';
+            img.annotations.forEach(function(ann){
+                var cat=IC.getCategoryById(ann.categoryId);
+                s+='<div class="ann-row"><span class="ann-n" style="background:'+(cat?cat.color:'#888')+'">'+ann.number+'</span><div class="ann-body">';
+                if(cat)s+='<span class="ann-cat">'+esc(cat.name)+'</span>';
+                if(o.description&&ann.description)s+='<div class="ann-f"><em>Descripción:</em> '+esc(ann.description)+'</div>';
+                if(o.interpretation&&ann.interpretation)s+='<div class="ann-f"><em>Interpretación:</em> '+esc(ann.interpretation)+'</div>';
+                if(o.memo&&ann.memo)s+='<div class="ann-f ann-memo"><em>Memo:</em> '+esc(ann.memo)+'</div>';
+                s+='</div></div>';
+            });
+            s+='</div>';
+        }
+
+        if(o.relations&&img.relations&&img.relations.length){
+            s+='<div class="rels-block"><h4>Relaciones intra-imagen</h4>';
+            img.relations.forEach(function(r){
+                var from=img.annotations.find(function(a){return a.id===r.fromAnnId});
+                var to=img.annotations.find(function(a){return a.id===r.toAnnId});
+                s+='<div class="rel-row">#'+(from?from.number:'?')+' → #'+(to?to.number:'?')+' <em>'+esc(r.type)+'</em></div>';
+            });
+            s+='</div>';
+        }
+
+        s+='</div>';
+        return s;
+    }).join('');
+
+    // Chains summary
+    var chainsSummary='';
+    if(o.chains&&IC.state.chains.length){
+        chainsSummary='<div class="chains-summary"><h3>Cadenas analíticas</h3>';
+        IC.state.chains.forEach(function(ch){
+            var instCount=ch.links.length;
+            chainsSummary+='<div class="chain-block"><h4 style="color:'+ch.color+'">'+esc(ch.name)+' ('+instCount+' instancias)</h4>';
+            if(ch.description)chainsSummary+='<p>'+esc(ch.description)+'</p>';
+            ch.links.forEach(function(l){
+                var img2=IC.state.images.find(function(i){return i.id===l.imageId});
+                var ann=img2?(img2.annotations||[]).find(function(a){return a.id===l.annotationId}):null;
+                if(img2&&ann) chainsSummary+='<div class="chain-inst">Img '+(IC.state.images.indexOf(img2)+1)+' #'+ann.number+(ann.description?' — '+esc(ann.description.substring(0,60)):'')+'</div>';
+            });
+            chainsSummary+='</div>';
         });
+        chainsSummary+='</div>';
+    }
 
-        fabric.Image.fromURL(imgData.dataUrl, function(fabricImg) {
-            const scale = Math.min(
-                (900 * 0.9) / fabricImg.width,
-                (600 * 0.9) / fabricImg.height,
-                1
-            );
-
-            fabricImg.set({
-                left: 450,
-                top: 300,
-                originX: 'center',
-                originY: 'center',
-                scaleX: scale,
-                scaleY: scale,
-            });
-
-            tempCanvas.setBackgroundImage(fabricImg, function() {
-                if (imgData.canvasObjects && imgData.canvasObjects.length > 0) {
-                    fabric.util.enlivenObjects(imgData.canvasObjects, function(objects) {
-                        objects.forEach(obj => tempCanvas.add(obj));
-                        tempCanvas.renderAll();
-                        const dataUrl = tempCanvas.toDataURL({ format: 'png', multiplier: 1.5 });
-                        cleanup();
-                        resolve(dataUrl);
-                    });
-                } else {
-                    tempCanvas.renderAll();
-                    const dataUrl = tempCanvas.toDataURL({ format: 'png', multiplier: 1.5 });
-                    cleanup();
-                    resolve(dataUrl);
-                }
-            });
-        }, { crossOrigin: 'anonymous' });
-
-        function cleanup() {
-            tempCanvas.dispose();
-            document.body.removeChild(tempCanvasEl);
-        }
-
-        // Timeout fallback
-        setTimeout(() => resolve(imgData.dataUrl), 5000);
-    });
+    return'<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+esc(o.title)+'</title>'+
+    '<style>'+reportCSS()+'</style></head><body>'+
+    '<div class="rpt-hdr"><h1>'+esc(o.title)+'</h1>'+(o.author?'<div class="sub">'+esc(o.author)+'</div>':'')+
+    '<div class="rpt-meta">'+date+' · '+imgs.length+' imágenes · img-corpus v2</div></div>'+
+    body+chainsSummary+
+    '<div class="rpt-foot">Generado con img-corpus v2 · '+date+'</div>'+
+    '<script>var b=document.createElement("button");b.textContent="Guardar como PDF";b.style.cssText="position:fixed;bottom:16px;right:16px;padding:8px 16px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font:600 13px sans-serif;z-index:999";b.onclick=function(){window.print()};document.body.appendChild(b)<\/script>'+
+    '</body></html>';
 }
 
-function buildReportHTML(imageSnapshots, opts) {
-    const dateStr = new Date().toLocaleDateString('es-PE', {
-        year: 'numeric', month: 'long', day: 'numeric'
-    });
+function reportCSS(){
+    return'@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");'+
+    '*{box-sizing:border-box;margin:0;padding:0}body{font-family:"IBM Plex Sans",sans-serif;color:#1a1a2e;background:#fff;line-height:1.6;padding:40px;max-width:900px;margin:0 auto}'+
+    '.rpt-hdr{border-bottom:3px solid #1a1a2e;padding-bottom:16px;margin-bottom:24px}.rpt-hdr h1{font-size:26px;margin-bottom:4px}.sub{color:#666;font-size:14px}.rpt-meta{margin-top:6px;font-size:12px;color:#888;font-family:"IBM Plex Mono",monospace}'+
+    '.img-section{margin-bottom:36px;page-break-inside:avoid}.img-section h3{font-size:18px;font-weight:600;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #ddd}'+
+    '.img-frame{margin-bottom:14px;text-align:center}.img-frame img{max-width:100%;height:auto;border:1px solid #e0e0e0;border-radius:4px}'+
+    '.meta-tbl{width:100%;margin-bottom:10px;border-collapse:collapse;font-size:13px}.meta-tbl td{padding:3px 8px;border-bottom:1px solid #f0f0f0}.ml{font-weight:600;color:#555;width:110px;text-transform:uppercase;font-size:11px;letter-spacing:.4px}'+
+    '.tags-row{margin-bottom:10px;display:flex;flex-wrap:wrap;gap:4px}.tag{display:inline-block;background:#e8f5f3;color:#2a8a80;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500}'+
+    '.gen-notes{background:#f8f8fc;padding:10px;border-radius:6px;margin-bottom:10px;font-size:13px;line-height:1.6}'+
+    '.anns-block h4,.rels-block h4{font-size:14px;font-weight:600;margin-bottom:6px;color:#333}'+
+    '.ann-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}'+
+    '.ann-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;font-family:"IBM Plex Mono",monospace;flex-shrink:0}'+
+    '.ann-body{flex:1}.ann-cat{font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#888;font-weight:600}'+
+    '.ann-f{margin-top:3px}.ann-f em{color:#666;font-style:italic}.ann-memo{color:#888;font-size:12px}'+
+    '.rel-row{font-size:13px;padding:3px 0;border-bottom:1px solid #f0f0f0}.rel-row em{color:#666}'+
+    '.chains-summary{margin-top:30px;padding-top:16px;border-top:2px solid #1a1a2e}.chains-summary h3{font-size:18px;margin-bottom:10px}'+
+    '.chain-block{margin-bottom:14px}.chain-block h4{font-size:14px;margin-bottom:4px}.chain-block p{font-size:13px;color:#555;margin-bottom:6px}'+
+    '.chain-inst{font-size:12px;color:#444;padding:2px 0;border-bottom:1px solid #f5f5f5}'+
+    '.rpt-foot{margin-top:40px;padding-top:12px;border-top:1px solid #ddd;font-size:11px;color:#999;font-family:"IBM Plex Mono",monospace;text-align:center}'+
+    '@media print{body{padding:20px}.img-section{page-break-inside:avoid}}';
+}
 
-    let imagesHTML = '';
+// ========== QUALITATIVE JSON ==========
+function exportQualJSON(){
+    var imgs=getScopedImages();
+    var schema={
+        _schema:'img-corpus-qualitative-v2',
+        exportDate:new Date().toISOString(),
+        project:IC.state.sessionName,
+        categories:IC.state.categories.map(function(c){return{id:c.id,name:c.name,color:c.color}}),
+        customFields:IC.state.customMetaSchema,
+        chains:IC.state.chains.map(function(ch){
+            return{id:ch.id,name:ch.name,description:ch.description,instances:ch.links.map(function(l){
+                var img=IC.state.images.find(function(i){return i.id===l.imageId});
+                var ann=img?(img.annotations||[]).find(function(a){return a.id===l.annotationId}):null;
+                return{imageId:l.imageId,imageName:img?img.name:'',annotationNumber:ann?ann.number:null,description:ann?ann.description:'',interpretation:ann?ann.interpretation:''};
+            })};
+        }),
+        images:imgs.map(function(img,idx){
+            return{id:img.id,index:idx+1,name:img.name,metadata:img.metadata,tags:img.tags,generalNotes:img.generalNotes,
+                collections:(img.collectionIds||[]).map(function(cid){var co=IC.state.collections.find(function(c){return c.id===cid});return co?co.name:cid}),
+                annotations:(img.annotations||[]).map(function(a){
+                    var cat=IC.getCategoryById(a.categoryId);
+                    return{number:a.number,category:cat?cat.name:'',type:a.type,description:a.description,interpretation:a.interpretation,memo:a.memo,
+                        chains:(a.chainIds||[]).map(function(cid){var ch=IC.state.chains.find(function(c){return c.id===cid});return ch?ch.name:cid})};
+                }),
+                relations:(img.relations||[]).map(function(r){
+                    var from=img.annotations.find(function(a){return a.id===r.fromAnnId});
+                    var to=img.annotations.find(function(a){return a.id===r.toAnnId});
+                    return{from:from?from.number:null,to:to?to.number:null,type:r.type};
+                })
+            };
+        }),
+        diary:IC.state.diary
+    };
+    var blob=new Blob([JSON.stringify(schema,null,2)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='img-corpus-qualitative_'+ds()+'.json';a.click();URL.revokeObjectURL(a.href);
+}
 
-    imageSnapshots.forEach((entry, idx) => {
-        const img = entry.img;
-        const num = idx + 1;
-
-        let metaHTML = '';
-        if (opts.includeMetadata) {
-            const fields = [];
-            if (img.metadata.source) fields.push(`<tr><td class="meta-label">Fuente</td><td>${esc(img.metadata.source)}</td></tr>`);
-            if (img.metadata.author) fields.push(`<tr><td class="meta-label">Autor</td><td>${esc(img.metadata.author)}</td></tr>`);
-            if (img.metadata.date) fields.push(`<tr><td class="meta-label">Fecha</td><td>${esc(img.metadata.date)}</td></tr>`);
-            if (img.metadata.medium) fields.push(`<tr><td class="meta-label">Medio</td><td>${esc(img.metadata.medium)}</td></tr>`);
-            if (img.metadata.context) fields.push(`<tr><td class="meta-label">Contexto</td><td>${esc(img.metadata.context)}</td></tr>`);
-            if (img.metadata.custom) fields.push(`<tr><td class="meta-label">Notas</td><td>${esc(img.metadata.custom)}</td></tr>`);
-            if (fields.length > 0) {
-                metaHTML = `<table class="meta-table">${fields.join('')}</table>`;
-            }
-        }
-
-        let tagsHTML = '';
-        if (opts.includeTags && img.tags && img.tags.length > 0) {
-            tagsHTML = `<div class="tags-row">${img.tags.map(t => `<span class="tag">${esc(t)}</span>`).join(' ')}</div>`;
-        }
-
-        let notesHTML = '';
-        if (opts.includeNotes && img.generalNotes) {
-            notesHTML = `<div class="general-notes"><strong>Notas generales:</strong><br>${esc(img.generalNotes).replace(/\n/g, '<br>')}</div>`;
-        }
-
-        let annotationsHTML = '';
-        if (opts.includeNotes && img.annotations && img.annotations.length > 0) {
-            const annRows = img.annotations.map(ann => {
-                const cat = IC.getCategoryById(ann.categoryId);
-                const catName = cat ? cat.name : '';
-                const catColor = cat ? cat.color : '#4ecdc4';
-                return `
-                <div class="annotation-row">
-                    <span class="ann-num" style="background:${catColor}">${ann.number}</span>
-                    <span class="ann-cat">${esc(catName)}</span>
-                    <span class="ann-note">${esc(ann.note || '(sin nota)')}</span>
-                </div>`;
-            }).join('');
-            annotationsHTML = `<div class="annotations-block"><h4>Anotaciones</h4>${annRows}</div>`;
-        }
-
-        imagesHTML += `
-        <div class="image-section">
-            <h3>Imagen ${num}: ${esc(img.name)}</h3>
-            <div class="image-frame">
-                <img src="${entry.snapshot}" alt="${esc(img.name)}">
-            </div>
-            ${metaHTML}
-            ${tagsHTML}
-            ${notesHTML}
-            ${annotationsHTML}
-        </div>`;
-    });
-
-    // Tags summary (scoped to included images)
-    const tagCounts = {};
-    imageSnapshots.forEach(entry => {
-        (entry.img.tags || []).forEach(tag => {
-            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+// ========== CROP EXPORT ==========
+function exportCrops(){
+    var imgs=getScopedImages();
+    var crops=[];
+    imgs.forEach(function(img,idx){
+        (img.annotations||[]).forEach(function(ann){
+            var cat=IC.getCategoryById(ann.categoryId);
+            crops.push({
+                filename:'crop_img'+(idx+1)+'_ann'+ann.number+'.txt',
+                image:img.name,imageIndex:idx+1,annotationNumber:ann.number,
+                category:cat?cat.name:'',type:ann.type,
+                description:ann.description||'',interpretation:ann.interpretation||'',memo:ann.memo||'',
+                chains:(ann.chainIds||[]).map(function(cid){var ch=IC.state.chains.find(function(c){return c.id===cid});return ch?ch.name:''}).filter(Boolean)
+            });
         });
     });
-    const tagsSummary = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]);
-    let tagsSummaryHTML = '';
-    if (opts.includeTags && tagsSummary.length > 0) {
-        tagsSummaryHTML = `
-        <div class="corpus-summary">
-            <h3>Etiquetas del corpus${imageSnapshots.length < IC.state.images.length ? ' (selecci\u00f3n)' : ''}</h3>
-            <div class="tags-row">
-                ${tagsSummary.map(([t, c]) => `<span class="tag">${esc(t)} (${c})</span>`).join(' ')}
-            </div>
-        </div>`;
-    }
 
-    return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${esc(opts.title)} \u2014 img-corpus</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+    if(!crops.length){alert('Sin anotaciones para exportar.');return}
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-    font-family: 'IBM Plex Sans', sans-serif;
-    color: #1a1a2e;
-    background: #fff;
-    line-height: 1.6;
-    padding: 40px;
-    max-width: 900px;
-    margin: 0 auto;
+    // Export as a single JSON with crop metadata
+    var blob=new Blob([JSON.stringify({_schema:'img-corpus-crops-v2',exportDate:new Date().toISOString(),crops:crops},null,2)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='img-corpus-crops_'+ds()+'.json';a.click();URL.revokeObjectURL(a.href);
 }
 
-.report-header {
-    border-bottom: 3px solid #1a1a2e;
-    padding-bottom: 20px;
-    margin-bottom: 30px;
-}
-.report-header h1 {
-    font-size: 28px;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-.report-header .subtitle {
-    color: #666;
-    font-size: 14px;
-}
-.report-header .report-meta {
-    margin-top: 8px;
-    font-size: 12px;
-    color: #888;
-    font-family: 'IBM Plex Mono', monospace;
+function dlHTML(html,title){
+    var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=title.replace(/[^a-zA-Z0-9áéíóúñü\s-]/g,'').replace(/\s+/g,'-')+'_'+ds()+'.html';
+    a.click();URL.revokeObjectURL(a.href);
 }
 
-.image-section {
-    margin-bottom: 40px;
-    page-break-inside: avoid;
-}
-.image-section h3 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #ddd;
-}
-
-.image-frame {
-    margin-bottom: 16px;
-    text-align: center;
-}
-.image-frame img {
-    max-width: 100%;
-    height: auto;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-}
-
-.meta-table {
-    width: 100%;
-    margin-bottom: 12px;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-.meta-table td {
-    padding: 4px 8px;
-    border-bottom: 1px solid #f0f0f0;
-}
-.meta-label {
-    font-weight: 600;
-    color: #555;
-    width: 120px;
-    text-transform: uppercase;
-    font-size: 11px;
-    letter-spacing: 0.5px;
-}
-
-.tags-row {
-    margin-bottom: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-.tag {
-    display: inline-block;
-    background: #e8f5f3;
-    color: #2a8a80;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.general-notes {
-    background: #f8f8fc;
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    font-size: 13px;
-    line-height: 1.6;
-}
-
-.annotations-block h4 {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #333;
-}
-.annotation-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 6px 0;
-    border-bottom: 1px solid #f0f0f0;
-    font-size: 13px;
-}
-.ann-num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    color: white;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: 'IBM Plex Mono', monospace;
-    flex-shrink: 0;
-}
-.ann-cat {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: #888;
-    font-weight: 600;
-    min-width: 80px;
-}
-.ann-note { flex: 1; }
-
-.corpus-summary {
-    margin-top: 40px;
-    padding-top: 20px;
-    border-top: 2px solid #1a1a2e;
-}
-.corpus-summary h3 {
-    font-size: 18px;
-    margin-bottom: 12px;
-}
-
-.report-footer {
-    margin-top: 50px;
-    padding-top: 16px;
-    border-top: 1px solid #ddd;
-    font-size: 11px;
-    color: #999;
-    font-family: 'IBM Plex Mono', monospace;
-    text-align: center;
-}
-
-@media print {
-    body { padding: 20px; }
-    .image-section { page-break-inside: avoid; }
-}
-</style>
-</head>
-<body>
-<div class="report-header">
-    <h1>${esc(opts.title)}</h1>
-    ${opts.author ? `<div class="subtitle">${esc(opts.author)}</div>` : ''}
-    <div class="report-meta">${dateStr} \u00b7 ${imageSnapshots.length} im\u00e1genes \u00b7 Generado con img-corpus</div>
-</div>
-
-${imagesHTML}
-${tagsSummaryHTML}
-
-<div class="report-footer">
-    Informe generado por img-corpus \u00b7 ${dateStr}
-</div>
-
-<script>
-// PDF save button (only in HTML view)
-if (window.location.protocol !== 'file:' || true) {
-    const btn = document.createElement('button');
-    btn.textContent = 'Guardar como PDF';
-    btn.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:10px 20px;background:#1a1a2e;color:white;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-    btn.addEventListener('click', () => window.print());
-    btn.addEventListener('mouseover', () => btn.style.background = '#2a2a4e');
-    btn.addEventListener('mouseout', () => btn.style.background = '#1a1a2e');
-    document.body.appendChild(btn);
-}
-<\/script>
-</body>
-</html>`;
-}
-
-function downloadHTML(html, title) {
-    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const safeName = title.replace(/[^a-zA-Z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\s-]/g, '').replace(/\s+/g, '-');
-    a.download = `${safeName}_${dateStamp()}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-function downloadPDFFromHTML(html, title) {
-    // Open in new window and trigger print (browser native PDF)
-    const win = window.open('', '_blank');
-    if (!win) {
-        alert('Permite ventanas emergentes para generar el PDF.');
-        return;
-    }
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => {
-        win.print();
-    }, 800);
-}
-
-// ========== HELPERS ==========
-function esc(str) {
-    if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function dateStamp() {
-    const d = new Date();
-    return d.getFullYear() + '-' +
-        String(d.getMonth()+1).padStart(2,'0') + '-' +
-        String(d.getDate()).padStart(2,'0');
-}
+function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function ds(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 
 })();

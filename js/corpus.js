@@ -1,320 +1,107 @@
 /* ========================================
-   IMG-CORPUS \u2014 Corpus Management
-   Image management, gallery, metadata, tags
+   IMG-CORPUS V2 — Corpus
+   Image management, gallery, drag-drop
    ======================================== */
+(function(){
 
-(function() {
+IC.initCorpus=function(){initFileInput();initDragDrop()};
 
-IC.initCorpus = function() {
-    initFileInput();
-    initDragDrop();
-    initMetadataListeners();
-    initTagListeners();
-};
-
-// ========== LOAD IMAGE FILES (shared) ==========
-function loadImageFiles(files) {
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
-
-    IC.pushUndo();
-    const slots = new Array(imageFiles.length);
-    let loaded = 0;
-
-    imageFiles.forEach((file, idx) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            slots[idx] = {
-                id: IC.uid(),
-                name: file.name,
-                dataUrl: ev.target.result,
-                metadata: { source: '', author: '', date: '', medium: '', context: '', custom: '' },
-                tags: [],
-                generalNotes: '',
-                annotations: [],
-                canvasObjects: [],
-            };
+function loadFiles(files){
+    var imgs=Array.from(files).filter(function(f){return f.type.startsWith('image/')});
+    if(!imgs.length)return;IC.pushUndo();var slots=new Array(imgs.length),loaded=0;
+    imgs.forEach(function(f,i){
+        var r=new FileReader();
+        r.onload=function(ev){
+            slots[i]={id:IC.uid(),name:f.name,dataUrl:ev.target.result,
+                metadata:{source:'',author:'',date:'',medium:'',context:'',custom:''},
+                tags:[],generalNotes:'',annotations:[],relations:[],canvasObjects:[],collectionIds:[]};
             loaded++;
-
-            if (loaded === imageFiles.length) {
-                slots.forEach(img => IC.state.images.push(img));
-                IC.renderGallery();
-                IC.renderCorpusTags();
-                if (IC.state.viewMode === 'grid') IC.renderGridView();
-                if (!IC.state.currentImageId && IC.state.images.length > 0) {
-                    if (IC.state.viewMode === 'single') {
-                        selectImage(IC.state.images[0].id);
-                    } else {
-                        IC.state.currentImageId = IC.state.images[0].id;
-                    }
+            if(loaded===imgs.length){
+                slots.forEach(function(img){IC.state.images.push(img)});
+                IC.renderGallery();IC.renderCorpusTags();
+                if(IC.state.viewMode==='grid'&&IC.renderGridView)IC.renderGridView();
+                if(!IC.state.currentImageId&&IC.state.images.length){
+                    if(IC.state.viewMode==='single')selectImage(IC.state.images[0].id);
+                    else IC.state.currentImageId=IC.state.images[0].id;
                 }
+                IC.log(imgs.length+' imágenes añadidas al corpus');
             }
         };
-        reader.readAsDataURL(file);
+        r.readAsDataURL(f);
     });
 }
 
-// ========== FILE INPUT ==========
-function initFileInput() {
-    const fileInput = document.getElementById('fileInput');
-    fileInput.addEventListener('change', (e) => {
-        loadImageFiles(e.target.files);
-        fileInput.value = '';
-    });
+function initFileInput(){document.getElementById('fileInput').addEventListener('change',function(e){loadFiles(e.target.files);e.target.value=''})}
+
+function initDragDrop(){
+    var dz=document.getElementById('galleryScroll');
+    ['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();dz.classList.add('drag-over')})});
+    ['dragleave','drop'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();dz.classList.remove('drag-over')})});
+    dz.addEventListener('drop',function(e){if(e.dataTransfer.files.length)loadFiles(e.dataTransfer.files)});
+    var ws=document.getElementById('workspace');
+    ws.addEventListener('dragover',function(e){e.preventDefault()});
+    ws.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files.length)loadFiles(e.dataTransfer.files)});
 }
 
-// ========== DRAG AND DROP ==========
-function initDragDrop() {
-    const dropZone = document.getElementById('galleryScroll');
-
-    ['dragenter', 'dragover'].forEach(ev => {
-        dropZone.addEventListener(ev, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.add('drag-over');
-        });
-    });
-
-    ['dragleave', 'drop'].forEach(ev => {
-        dropZone.addEventListener(ev, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.remove('drag-over');
-        });
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
-        if (files.length > 0) loadImageFiles(files);
-    });
-
-    // Also allow drop on entire workspace
-    const workspace = document.getElementById('workspace');
-    workspace.addEventListener('dragover', (e) => { e.preventDefault(); });
-    workspace.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const files = e.dataTransfer.files;
-        if (files.length > 0) loadImageFiles(files);
-    });
-}
-
-// ========== GALLERY RENDERING ==========
-IC.renderGallery = function() {
-    const gallery = document.getElementById('gallery');
-    const emptyEl = document.getElementById('galleryEmpty');
-
-    if (IC.state.images.length === 0) {
-        gallery.innerHTML = '';
-        emptyEl.classList.remove('hidden');
-        return;
-    }
-
-    emptyEl.classList.add('hidden');
-
-    gallery.innerHTML = IC.state.images.map((img, idx) => {
-        const isActive = img.id === IC.state.currentImageId;
-        const isBatchSel = IC.state.batchSelected.has(img.id);
-        const isPinned = IC.state.pinnedIds.includes(img.id);
-        const classes = ['gallery-item'];
-        if (isActive) classes.push('active');
-        if (isBatchSel) classes.push('batch-selected');
-        if (isPinned) classes.push('pinned');
-
-        const usedCats = new Set((img.annotations || []).map(a => a.categoryId));
-        const badges = Array.from(usedCats).slice(0, 4).map(catId => {
-            const color = IC.getCategoryColor(catId);
-            return `<span class="item-badge" style="background:${color}"></span>`;
-        }).join('');
-
-        const pinLabel = isPinned ? (IC.state.pinnedIds.indexOf(img.id) + 1) : '';
-
-        return `
-        <div class="${classes.join(' ')}" data-img-id="${img.id}">
-            <img src="${img.dataUrl}" alt="${img.name}" loading="lazy">
-            <span class="item-index">${idx + 1}</span>
-            <div class="item-badges">${badges}</div>
-            <span class="item-pin">${pinLabel}</span>
-            <div class="batch-check"></div>
-            <button class="item-remove" data-img-id="${img.id}" title="Eliminar">&times;</button>
-        </div>`;
+IC.renderGallery=function(){
+    var g=document.getElementById('gallery'),empty=document.getElementById('galleryEmpty');
+    if(!IC.state.images.length){g.innerHTML='';empty.classList.remove('hidden');return}
+    empty.classList.add('hidden');
+    g.innerHTML=IC.state.images.map(function(img,idx){
+        var cl=['gallery-item'];
+        if(img.id===IC.state.currentImageId)cl.push('active');
+        if(IC.state.batchSelected.has(img.id))cl.push('batch-selected');
+        var badges=Array.from(new Set((img.annotations||[]).map(function(a){return a.categoryId}))).slice(0,4).map(function(c){return'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+IC.getCategoryColor(c)+'"></span>'}).join('');
+        return'<div class="'+cl.join(' ')+'" data-id="'+img.id+'"><img src="'+img.dataUrl+'" loading="lazy"><span class="item-idx">'+(idx+1)+'</span><div class="batch-ck"></div><button class="item-remove" data-id="'+img.id+'">&times;</button></div>';
     }).join('');
-
-    // Event listeners
-    gallery.querySelectorAll('.gallery-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            if (e.target.classList.contains('item-remove')) return;
-            const imgId = el.dataset.imgId;
-
-            if (IC.state.batchMode) {
-                if (IC.state.batchSelected.has(imgId)) {
-                    IC.state.batchSelected.delete(imgId);
-                } else {
-                    IC.state.batchSelected.add(imgId);
-                }
-                IC.renderGallery();
-                IC.updateBatchCount();
-                if (IC.state.viewMode === 'grid') IC.renderGridView();
-            } else if (e.ctrlKey || e.metaKey) {
-                // Ctrl+click: toggle pin for multi-view
-                IC.togglePin(imgId);
-            } else {
-                selectImage(imgId);
-            }
+    g.querySelectorAll('.gallery-item').forEach(function(el){
+        el.addEventListener('click',function(e){
+            if(e.target.classList.contains('item-remove'))return;
+            var id=el.dataset.id;
+            if(IC.state.batchMode){
+                if(IC.state.batchSelected.has(id))IC.state.batchSelected.delete(id);else IC.state.batchSelected.add(id);
+                IC.renderGallery();document.getElementById('batchCount').textContent=IC.state.batchSelected.size;
+                if(IC.state.viewMode==='grid'&&IC.renderGridView)IC.renderGridView();
+            } else selectImage(id);
         });
     });
-
-    gallery.querySelectorAll('.item-remove').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const imgId = btn.dataset.imgId;
-            IC.pushUndo();
-            // Unpin if pinned
-            IC.state.pinnedIds = IC.state.pinnedIds.filter(id => id !== imgId);
-            IC.state.images = IC.state.images.filter(i => i.id !== imgId);
-            if (IC.state.currentImageId === imgId) {
-                IC.state.currentImageId = IC.state.images.length > 0 ? IC.state.images[0].id : null;
-                if (IC.state.currentImageId) {
-                    selectImage(IC.state.currentImageId);
-                } else {
-                    IC.showCanvasEmpty(true);
-                    clearPanels();
-                }
-            }
-            IC.renderGallery();
-            IC.renderCorpusTags();
+    g.querySelectorAll('.item-remove').forEach(function(b){
+        b.addEventListener('click',function(e){
+            e.stopPropagation();IC.pushUndo();var id=b.dataset.id;
+            IC.state.images=IC.state.images.filter(function(i){return i.id!==id});
+            if(IC.state.currentImageId===id){IC.state.currentImageId=IC.state.images.length?IC.state.images[0].id:null;if(IC.state.currentImageId)selectImage(IC.state.currentImageId);else{IC.showCanvasEmpty(true);clearPanels()}}
+            IC.renderGallery();IC.renderCorpusTags();
         });
     });
 };
 
-// ========== SELECT IMAGE ==========
-function selectImage(imgId) {
-    // Save current before switching
-    IC.saveCurrentCanvasState();
-
-    IC.state.currentImageId = imgId;
-    const img = IC.getCurrentImage();
-    if (!img) return;
-
-    IC.renderGallery();
-    IC.loadImageToCanvas(img);
-    IC.renderAnnotationsPanel(img);
-    IC.renderMetadataPanel(img);
-    IC.renderTagsPanel(img);
+function selectImage(id){
+    IC.saveCurrentCanvasState();IC.state.currentImageId=id;
+    var img=IC.getCurrentImage();if(!img)return;
+    IC.renderGallery();IC.loadImageToCanvas(img);IC.renderAnnotationsPanel(img);IC.renderMetadataPanel(img);IC.renderTagsPanel(img);
 }
+IC.selectImage=selectImage;
 
-IC.selectImage = selectImage;
-
-// ========== METADATA ==========
-IC.renderMetadataPanel = function(img) {
-    if (!img) return;
-    document.getElementById('metaSource').value = img.metadata.source || '';
-    document.getElementById('metaAuthor').value = img.metadata.author || '';
-    document.getElementById('metaDate').value = img.metadata.date || '';
-    document.getElementById('metaMedium').value = img.metadata.medium || '';
-    document.getElementById('metaContext').value = img.metadata.context || '';
-    document.getElementById('metaCustom').value = img.metadata.custom || '';
-};
-
-function initMetadataListeners() {
-    const fields = ['metaSource', 'metaAuthor', 'metaDate', 'metaMedium', 'metaContext', 'metaCustom'];
-    const keys = ['source', 'author', 'date', 'medium', 'context', 'custom'];
-
-    fields.forEach((fieldId, idx) => {
-        document.getElementById(fieldId).addEventListener('input', (e) => {
-            const img = IC.getCurrentImage();
-            if (img) img.metadata[keys[idx]] = e.target.value;
-        });
-    });
-}
-
-// ========== TAGS ==========
-IC.renderTagsPanel = function(img) {
-    if (!img) return;
-    const container = document.getElementById('tagsCloud');
-
-    container.innerHTML = (img.tags || []).map(tag =>
-        `<span class="tag-chip">
-            ${tag}
-            <button class="tag-remove" data-tag="${tag}">&times;</button>
-        </span>`
-    ).join('');
-
-    container.querySelectorAll('.tag-remove').forEach(btn => {
-        btn.addEventListener('click', () => {
-            IC.pushUndo();
-            img.tags = img.tags.filter(t => t !== btn.dataset.tag);
-            IC.renderTagsPanel(img);
-            IC.renderCorpusTags();
-        });
+IC.renderGridView=function(){
+    var c=document.getElementById('gridViewInner');
+    var imgs=IC.state.images;
+    if(!imgs.length){c.innerHTML='<div style="color:var(--t3);padding:40px;text-align:center">Sin imágenes.</div>';return}
+    c.innerHTML=imgs.map(function(img,idx){
+        var tags=(img.tags||[]).slice(0,4).map(function(t){return'<span class="grid-item-tag">'+IC.esc(t)+'</span>'}).join('');
+        return'<div class="grid-item" data-id="'+img.id+'"><div class="grid-item-img"><img src="'+img.dataUrl+'" loading="lazy"></div><div class="grid-item-body"><div class="grid-item-name">'+(idx+1)+'. '+IC.esc(img.name)+'</div>'+
+            (tags?'<div class="grid-item-tags">'+tags+'</div>':'')+
+        '</div></div>';
+    }).join('');
+    c.querySelectorAll('.grid-item').forEach(function(el){
+        el.addEventListener('dblclick',function(){IC.state.currentImageId=el.dataset.id;IC.setViewMode('single');selectImage(el.dataset.id)});
     });
 };
 
-IC.renderCorpusTags = function() {
-    const tagCounts = {};
-    IC.state.images.forEach(img => {
-        (img.tags || []).forEach(tag => {
-            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-        });
-    });
-
-    const container = document.getElementById('corpusTags');
-    const sorted = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]);
-
-    container.innerHTML = sorted.map(([tag, count]) =>
-        `<span class="corpus-tag" data-tag="${tag}">
-            ${tag} <span class="tag-count">${count}</span>
-        </span>`
-    ).join('');
-
-    if (sorted.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-muted);font-size:11px;">Sin etiquetas en el corpus.</p>';
-    }
-};
-
-function initTagListeners() {
-    const input = document.getElementById('tagInput');
-    const addBtn = document.getElementById('btnAddTag');
-
-    function addTag() {
-        const img = IC.getCurrentImage();
-        if (!img) return;
-        const raw = input.value.trim().toLowerCase();
-        if (!raw) return;
-
-        IC.pushUndo();
-        const tags = raw.split(',').map(t => t.trim()).filter(Boolean);
-        tags.forEach(tag => {
-            if (!img.tags.includes(tag)) img.tags.push(tag);
-        });
-        input.value = '';
-        IC.renderTagsPanel(img);
-        IC.renderCorpusTags();
-    }
-
-    addBtn.addEventListener('click', addTag);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') addTag();
-    });
-}
-
-// ========== CLEAR PANELS ==========
-function clearPanels() {
-    document.getElementById('generalNotes').value = '';
-    document.getElementById('generalNotes').classList.add('hidden');
-    const gnd = document.getElementById('generalNotesDisplay');
-    gnd.textContent = 'Clic para agregar notas...';
-    gnd.classList.add('empty');
-    gnd.classList.remove('hidden');
-    document.getElementById('generalNotesHint').style.display = 'none';
-    document.getElementById('annotationsList').innerHTML = '';
-    document.getElementById('annotationCount').textContent = '0';
-    document.getElementById('metaSource').value = '';
-    document.getElementById('metaAuthor').value = '';
-    document.getElementById('metaDate').value = '';
-    document.getElementById('metaMedium').value = '';
-    document.getElementById('metaContext').value = '';
-    document.getElementById('metaCustom').value = '';
-    document.getElementById('tagsCloud').innerHTML = '';
+function clearPanels(){
+    document.getElementById('genNotes').value='';document.getElementById('genNotesDisplay').textContent='Clic para agregar...';
+    document.getElementById('genNotesDisplay').classList.add('empty');document.getElementById('genNotesDisplay').classList.remove('hidden');
+    document.getElementById('genNotes').classList.add('hidden');document.getElementById('genNotesHint').classList.add('hidden');
+    document.getElementById('annList').innerHTML='';document.getElementById('annCount').textContent='0';
 }
 
 })();
