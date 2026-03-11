@@ -14,6 +14,7 @@ IC.state = {
     batchSelected: new Set(),
     activeTool: 'select',
     activeCategory: null,
+    viewMode: 'single',
     sessionName: 'Sesión sin título',
 };
 
@@ -93,7 +94,9 @@ IC.refreshAll = function() {
     IC.renderGallery();
     IC.renderCategories();
     IC.updateCategorySelects();
-    if (IC.state.currentImageId) {
+    if (IC.state.viewMode === 'grid') {
+        IC.renderGridView();
+    } else if (IC.state.currentImageId) {
         const img = IC.getCurrentImage();
         if (img) {
             IC.loadImageToCanvas(img);
@@ -373,6 +376,8 @@ IC.initKeyboard = function() {
             case '+': if (IC.zoomIn) IC.zoomIn(); break;
             case '-': if (IC.zoomOut) IC.zoomOut(); break;
             case '0': if (IC.zoomFit) IC.zoomFit(); break;
+            case 'g': IC.setViewMode('grid'); break;
+            case '1': IC.setViewMode('single'); break;
         }
     });
 };
@@ -397,7 +402,123 @@ IC.initToolbar = function() {
     document.getElementById('btnDeleteSelected').addEventListener('click', () => {
         if (IC.deleteSelectedAnnotation) IC.deleteSelectedAnnotation();
     });
+
+    // View mode toggle
+    document.getElementById('btnViewSingle').addEventListener('click', () => IC.setViewMode('single'));
+    document.getElementById('btnViewGrid').addEventListener('click', () => IC.setViewMode('grid'));
 };
+
+// ========== VIEW MODE ==========
+IC.setViewMode = function(mode) {
+    IC.state.viewMode = mode;
+    const canvasEl = document.getElementById('canvasContainer');
+    const gridEl = document.getElementById('gridView');
+    const btnSingle = document.getElementById('btnViewSingle');
+    const btnGrid = document.getElementById('btnViewGrid');
+
+    if (mode === 'grid') {
+        // Save current canvas before switching
+        if (IC.saveCurrentCanvasState) IC.saveCurrentCanvasState();
+        canvasEl.classList.add('hidden');
+        gridEl.classList.remove('hidden');
+        btnSingle.classList.remove('active');
+        btnGrid.classList.add('active');
+        IC.renderGridView();
+    } else {
+        gridEl.classList.add('hidden');
+        canvasEl.classList.remove('hidden');
+        btnSingle.classList.add('active');
+        btnGrid.classList.remove('active');
+        // Reload current image
+        const img = IC.getCurrentImage();
+        if (img) IC.loadImageToCanvas(img);
+    }
+};
+
+IC.renderGridView = function() {
+    const container = document.getElementById('gridViewInner');
+    const emptyEl = document.getElementById('gridEmpty');
+
+    if (IC.state.images.length === 0) {
+        container.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        return;
+    }
+    emptyEl.classList.add('hidden');
+
+    container.innerHTML = IC.state.images.map((img, idx) => {
+        const annCount = (img.annotations || []).length;
+        const tagCount = (img.tags || []).length;
+
+        // Category dots
+        const usedCats = [...new Set((img.annotations || []).map(a => a.categoryId))];
+        const catDots = usedCats.slice(0, 6).map(catId => {
+            const color = IC.getCategoryColor(catId);
+            return `<span class="grid-item-cat-dot" style="background:${color}"></span>`;
+        }).join('');
+
+        // Tags
+        const tags = (img.tags || []).slice(0, 5).map(t =>
+            `<span class="grid-item-tag">${escGrid(t)}</span>`
+        ).join('');
+        const moreTags = tagCount > 5 ? `<span class="grid-item-tag">+${tagCount - 5}</span>` : '';
+
+        // Notes preview
+        const notes = img.generalNotes
+            ? `<div class="grid-item-notes">${escGrid(img.generalNotes)}</div>`
+            : '';
+
+        // Metadata snippet
+        const metaParts = [];
+        if (img.metadata.source) metaParts.push(img.metadata.source);
+        if (img.metadata.date) metaParts.push(img.metadata.date);
+        if (img.metadata.author) metaParts.push(img.metadata.author);
+        const metaStr = metaParts.length > 0
+            ? `<div class="grid-item-meta">${escGrid(metaParts.join(' · '))}</div>`
+            : '';
+
+        return `
+        <div class="grid-item" data-img-id="${img.id}">
+            <div class="grid-item-image">
+                <img src="${img.dataUrl}" alt="${escGrid(img.name)}" loading="lazy">
+                <span class="grid-item-index">${idx + 1}</span>
+                <div class="grid-item-annotations">
+                    ${annCount > 0 ? `<span class="grid-item-ann-count"><span class="material-symbols-outlined">edit_note</span>${annCount}</span>` : ''}
+                </div>
+            </div>
+            <div class="grid-item-body">
+                <div class="grid-item-name">${escGrid(img.name)}</div>
+                ${metaStr}
+                ${tags || moreTags ? `<div class="grid-item-tags">${tags}${moreTags}</div>` : ''}
+                ${notes}
+                ${catDots ? `<div class="grid-item-cats">${catDots}</div>` : ''}
+                <div class="grid-item-hint">Doble clic para anotar</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Double click to open in single view
+    container.querySelectorAll('.grid-item').forEach(el => {
+        el.addEventListener('dblclick', () => {
+            const imgId = el.dataset.imgId;
+            IC.state.currentImageId = imgId;
+            IC.setViewMode('single');
+            IC.selectImage(imgId);
+            IC.renderGallery();
+            const img = IC.getCurrentImage();
+            if (img) {
+                IC.renderAnnotationsPanel(img);
+                IC.renderMetadataPanel(img);
+                IC.renderTagsPanel(img);
+            }
+        });
+    });
+};
+
+function escGrid(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ========== HEADER BUTTONS ==========
 IC.initHeaderButtons = function() {
