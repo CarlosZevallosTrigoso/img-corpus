@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>img-corpus — Análisis Visual de Corpus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <!-- ==================== HEADER ==================== -->
+    <header id="app-header">
+        <div class="header-left">
+            <h1 class="logo"><span class="logo-img">img</span><span class="logo-dash">-</span><span class="logo-corpus">corpus</span></h1>
+            <span class="header-subtitle">análisis visual</span>
+        </div>
+        <div class="header-center">
+            <div class="session-name" id="sessionName" contenteditable="true" spellcheck="false">Sesión sin título</div>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-ghost" id="btnUndo" title="Deshacer (Ctrl+Z)">
+                <span class="material-symbols-outlined">undo</span>
+            </button>
+            <button class="btn btn-ghost" id="btnRedo" title="Rehacer (Ctrl+Y)">
+                <span class="material-symbols-outlined">redo</span>
+            </button>
+            <div class="header-divider"></div>
+            <button class="btn btn-ghost" id="btnImportSession" title="Importar sesión">
+                <span class="material-symbols-outlined">upload_file</span>
+                <span class="btn-label">Importar</span>
+            </button>
+            <button class="btn btn-ghost" id="btnExportSession" title="Exportar sesión">
+                <span class="material-symbols-outlined">download</span>
+                <span class="btn-label">Exportar</span>
+            </button>
+            <button class="btn btn-primary" id="btnGenerateReport" title="Generar informe">
+                <span class="material-symbols-outlined">description</span>
+                <span class="btn-label">Informe</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==================== MAIN LAYOUT ==================== -->
+    <main id="app-main">
+        <!-- ========== SIDEBAR ========== -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">Corpus</h2>
+                <div class="sidebar-actions">
+                    <button class="btn btn-sm btn-ghost" id="btnBatchMode" title="Modo batch">
+                        <span class="material-symbols-outlined">checklist</span>
+                    </button>
+                    <label class="btn btn-sm btn-accent" id="btnAddImages" title="Agregar imágenes">
+                        <span class="material-symbols-outlined">add_photo_alternate</span>
+                        <input type="file" id="fileInput" multiple accept="image/*" hidden>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Batch toolbar -->
+            <div class="batch-toolbar" id="batchToolbar">
+                <div class="batch-info">
+                    <span id="batchCount">0</span> seleccionadas
+                </div>
+                <button class="btn btn-xs btn-ghost" id="btnBatchSelectAll" title="Seleccionar todas">Todas</button>
+                <button class="btn btn-xs btn-ghost" id="btnBatchSelectNone" title="Deseleccionar">Ninguna</button>
+                <button class="btn btn-xs btn-accent" id="btnBatchTag" title="Etiquetar selección">
+                    <span class="material-symbols-outlined">label</span> Etiquetar
+                </button>
+                <button class="btn btn-xs btn-accent" id="btnBatchNote" title="Anotar selección">
+                    <span class="material-symbols-outlined">note_add</span> Anotar
+                </button>
+                <button class="btn btn-xs btn-danger" id="btnBatchDelete" title="Eliminar selección">
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
+            </div>
+
+            <!-- Image gallery -->
+            <div class="gallery-scroll" id="galleryScroll">
+                <div class="gallery" id="gallery">
+                    <!-- Thumbnails rendered dynamically -->
+                </div>
+                <div class="gallery-empty" id="galleryEmpty">
+                    <span class="material-symbols-outlined">collections</span>
+                    <p>Agrega imágenes para comenzar</p>
+                </div>
+            </div>
+
+            <!-- Categories manager -->
+            <div class="sidebar-section" id="categoriesSection">
+                <div class="section-header" data-toggle="categoriesList">
+                    <h3>Categorías</h3>
+                    <button class="btn btn-xs btn-ghost" id="btnAddCategory" title="Nueva categoría">
+                        <span class="material-symbols-outlined">add</span>
+                    </button>
+                </div>
+                <div class="categories-list" id="categoriesList">
+                    <!-- Categories rendered dynamically -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- ========== CANVAS WORKSPACE ========== -->
+        <section id="workspace">
+            <!-- Tool bar -->
+            <div class="toolbar" id="toolbar">
+                <div class="tool-group">
+                    <button class="tool-btn active" data-tool="select" title="Seleccionar (V)">
+                        <span class="material-symbols-outlined">arrow_selector_tool</span>
+                    </button>
+                    <button class="tool-btn" data-tool="rect" title="Rectángulo (R)">
+                        <span class="material-symbols-outlined">rectangle</span>
+                    </button>
+                    <button class="tool-btn" data-tool="ellipse" title="Elipse (E)">
+                        <span class="material-symbols-outlined">circle</span>
+                    </button>
+                    <button class="tool-btn" data-tool="freedraw" title="Dibujo libre (D)">
+                        <span class="material-symbols-outlined">draw</span>
+                    </button>
+                    <button class="tool-btn" data-tool="arrow" title="Flecha (A)">
+                        <span class="material-symbols-outlined">arrow_right_alt</span>
+                    </button>
+                    <button class="tool-btn" data-tool="marker" title="Marcador numérico (M)">
+                        <span class="material-symbols-outlined">pin_drop</span>
+                    </button>
+                </div>
+                <div class="tool-divider"></div>
+                <div class="tool-group">
+                    <label class="tool-option" title="Categoría activa">
+                        <select id="toolCategory" class="tool-select">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </label>
+                </div>
+                <div class="tool-divider"></div>
+                <div class="tool-group">
+                    <button class="tool-btn" id="btnZoomIn" title="Zoom in (+)">
+                        <span class="material-symbols-outlined">zoom_in</span>
+                    </button>
+                    <button class="tool-btn" id="btnZoomOut" title="Zoom out (-)">
+                        <span class="material-symbols-outlined">zoom_out</span>
+                    </button>
+                    <button class="tool-btn" id="btnZoomFit" title="Ajustar (0)">
+                        <span class="material-symbols-outlined">fit_screen</span>
+                    </button>
+                    <span class="zoom-level" id="zoomLevel">100%</span>
+                </div>
+                <div class="tool-divider"></div>
+                <div class="tool-group">
+                    <button class="tool-btn" id="btnDeleteSelected" title="Eliminar selección (Del)">
+                        <span class="material-symbols-outlined">delete_outline</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Canvas container -->
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="mainCanvas"></canvas>
+                <div class="canvas-empty" id="canvasEmpty">
+                    <span class="material-symbols-outlined">image</span>
+                    <p>Selecciona una imagen del corpus</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== RIGHT PANEL ========== -->
+        <aside id="rightPanel">
+            <div class="panel-tabs">
+                <button class="panel-tab active" data-panel="annotations">Anotaciones</button>
+                <button class="panel-tab" data-panel="metadata">Metadatos</button>
+                <button class="panel-tab" data-panel="tags">Etiquetas</button>
+            </div>
+
+            <!-- Annotations panel -->
+            <div class="panel-content active" id="panelAnnotations">
+                <div class="panel-section">
+                    <h4>Notas generales</h4>
+                    <textarea class="general-notes" id="generalNotes" placeholder="Notas generales sobre esta imagen..."></textarea>
+                </div>
+                <div class="panel-section">
+                    <h4>Anotaciones <span class="annotation-count" id="annotationCount">0</span></h4>
+                    <div class="annotations-list" id="annotationsList">
+                        <!-- Annotations rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metadata panel -->
+            <div class="panel-content" id="panelMetadata">
+                <div class="meta-field">
+                    <label>Fuente</label>
+                    <input type="text" id="metaSource" placeholder="Fuente de la imagen">
+                </div>
+                <div class="meta-field">
+                    <label>Autor</label>
+                    <input type="text" id="metaAuthor" placeholder="Autor / Creador">
+                </div>
+                <div class="meta-field">
+                    <label>Fecha</label>
+                    <input type="text" id="metaDate" placeholder="Fecha (formato libre)">
+                </div>
+                <div class="meta-field">
+                    <label>Medio</label>
+                    <input type="text" id="metaMedium" placeholder="Medio / Soporte">
+                </div>
+                <div class="meta-field">
+                    <label>Contexto de circulación</label>
+                    <textarea id="metaContext" placeholder="Contexto de producción y circulación"></textarea>
+                </div>
+                <div class="meta-field">
+                    <label>Notas adicionales</label>
+                    <textarea id="metaCustom" placeholder="Otros metadatos relevantes"></textarea>
+                </div>
+            </div>
+
+            <!-- Tags panel -->
+            <div class="panel-content" id="panelTags">
+                <div class="tag-input-group">
+                    <input type="text" id="tagInput" placeholder="Nueva etiqueta..." class="tag-input">
+                    <button class="btn btn-xs btn-accent" id="btnAddTag">
+                        <span class="material-symbols-outlined">add</span>
+                    </button>
+                </div>
+                <div class="tags-cloud" id="tagsCloud">
+                    <!-- Tags rendered dynamically -->
+                </div>
+                <div class="panel-section" style="margin-top:1rem">
+                    <h4>Todas las etiquetas del corpus</h4>
+                    <div class="corpus-tags" id="corpusTags">
+                        <!-- All tags across corpus -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- ==================== MODALS ==================== -->
+    <!-- Batch tag modal -->
+    <div class="modal-overlay" id="modalBatchTag">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Etiquetar imágenes seleccionadas</h3>
+                <button class="btn btn-ghost modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tag-input-group">
+                    <input type="text" id="batchTagInput" placeholder="Escribe etiquetas separadas por coma..." class="tag-input">
+                </div>
+                <p class="modal-hint">Las etiquetas se agregarán a todas las imágenes seleccionadas.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost modal-close">Cancelar</button>
+                <button class="btn btn-primary" id="btnBatchTagApply">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch note modal -->
+    <div class="modal-overlay" id="modalBatchNote">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Anotar imágenes seleccionadas</h3>
+                <button class="btn btn-ghost modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="batchNoteInput" placeholder="Esta nota se agregará a las notas generales de todas las imágenes seleccionadas..." rows="5" class="general-notes"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost modal-close">Cancelar</button>
+                <button class="btn btn-primary" id="btnBatchNoteApply">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add category modal -->
+    <div class="modal-overlay" id="modalAddCategory">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Nueva categoría</h3>
+                <button class="btn btn-ghost modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="meta-field">
+                    <label>Nombre</label>
+                    <input type="text" id="categoryNameInput" placeholder="Nombre de la categoría">
+                </div>
+                <div class="meta-field">
+                    <label>Color</label>
+                    <input type="color" id="categoryColorInput" value="#4ecdc4">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost modal-close">Cancelar</button>
+                <button class="btn btn-primary" id="btnCategoryApply">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report preview (opens in new window, but generated inline first) -->
+    <div class="modal-overlay" id="modalReport">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3>Generar informe</h3>
+                <button class="btn btn-ghost modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="report-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="reportIncludeAnnotations" checked> Incluir anotaciones visuales
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="reportIncludeNotes" checked> Incluir notas
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="reportIncludeMetadata" checked> Incluir metadatos
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="reportIncludeTags" checked> Incluir etiquetas
+                    </label>
+                    <div class="meta-field" style="margin-top:0.75rem">
+                        <label>Título del informe</label>
+                        <input type="text" id="reportTitle" placeholder="Análisis de corpus visual">
+                    </div>
+                    <div class="meta-field">
+                        <label>Autor</label>
+                        <input type="text" id="reportAuthor" placeholder="Nombre del investigador">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost modal-close">Cancelar</button>
+                <button class="btn btn-accent" id="btnReportHTML">
+                    <span class="material-symbols-outlined">html</span> Generar HTML
+                </button>
+                <button class="btn btn-primary" id="btnReportPDF">
+                    <span class="material-symbols-outlined">picture_as_pdf</span> Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for import -->
+    <input type="file" id="importFileInput" accept=".json" hidden>
+
+    <!-- ==================== SCRIPTS ==================== -->
+    <script src="js/app.js"></script>
+    <script src="js/annotator.js"></script>
+    <script src="js/corpus.js"></script>
+    <script src="js/export.js"></script>
+</body>
+</html>
