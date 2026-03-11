@@ -165,7 +165,7 @@ function mkMarker(x,y){
         var id=IC.uid(),num=(img.annotations?img.annotations.length:0)+1,bu=IC.uid();
         canvas.add(mkBadge(x,y,num,c,id,bu));canvas.renderAll();
         if(!img.annotations)img.annotations=[];
-        img.annotations.push({id:id,number:num,categoryId:cat,description:'',interpretation:'',memo:'',type:'marker',badges:[{uid:bu,x:x,y:y}],chainIds:[],_pending:true});
+        img.annotations.push({id:id,number:num,categoryId:cat,levels:{},type:'marker',badges:[{uid:bu,x:x,y:y}],chainIds:[],_pending:true});
         IC.saveCurrentCanvasState();IC.renderAnnotationsPanel(img);if(IC.updateMarkerSelect)IC.updateMarkerSelect();autoFocus(id);
     } else {
         var ann=img.annotations.find(function(a){return a.id===sel});if(!ann)return;
@@ -182,7 +182,7 @@ function finalize(shape){
     var b=shape.getBoundingRect(),bx=b.left+b.width+6,by=b.top-6,bu=IC.uid();
     canvas.add(mkBadge(bx,by,num,c,id,bu));canvas.renderAll();
     if(!img.annotations)img.annotations=[];
-    img.annotations.push({id:id,number:num,categoryId:cat,description:'',interpretation:'',memo:'',type:IC.state.activeTool,badges:[{uid:bu,x:bx,y:by}],chainIds:[],_pending:true});
+    img.annotations.push({id:id,number:num,categoryId:cat,levels:{},type:IC.state.activeTool,badges:[{uid:bu,x:bx,y:by}],chainIds:[],_pending:true});
     IC.saveCurrentCanvasState();IC.renderAnnotationsPanel(img);if(IC.updateMarkerSelect)IC.updateMarkerSelect();autoFocus(id);
 }
 
@@ -207,7 +207,7 @@ IC.updateMarkerSelect=function(){
     sel.innerHTML=html;if(img.annotations&&img.annotations.find(function(a){return a.id===prev}))sel.value=prev;else sel.value='new';
 };
 
-function autoFocus(annId){setTimeout(function(){var d=document.querySelector('.ann-note-display[data-ann="'+annId+'"][data-key="description"]');if(d)d.click()},120)}
+function autoFocus(annId){setTimeout(function(){var lvl=IC.state.annotationLevels[0]||'Nivel 1';var d=document.querySelector('.ann-note-display[data-ann="'+annId+'"]');if(d)d.click()},120)}
 
 // Relation tool helpers
 function findNearestAnnotation(p){
@@ -253,17 +253,6 @@ IC.zoomIn=function(){if(!canvas)return;currentZoom=Math.min(currentZoom*1.2,10);
 IC.zoomOut=function(){if(!canvas)return;currentZoom=Math.max(currentZoom/1.2,.1);canvas.setZoom(currentZoom);updZoom()};
 IC.zoomFit=function(){if(!canvas)return;canvas.setViewportTransform([1,0,0,1,0,0]);currentZoom=1;updZoom()};
 function updZoom(){document.getElementById('zoomLevel').textContent=Math.round(currentZoom*100)+'%'}
-
-// General notes
-document.addEventListener('DOMContentLoaded',function(){
-    var disp=document.getElementById('genNotesDisplay'),ta=document.getElementById('genNotes'),hint=document.getElementById('genNotesHint');
-    function show(){var img=IC.getCurrentImage(),t=img?(img.generalNotes||''):'';ta.classList.add('hidden');hint.classList.add('hidden');disp.classList.remove('hidden');if(t.trim()){disp.textContent=t;disp.classList.remove('empty')}else{disp.textContent='Clic para agregar...';disp.classList.add('empty')}}
-    disp.addEventListener('click',function(){var img=IC.getCurrentImage();if(!img)return;disp.classList.add('hidden');ta.classList.remove('hidden');hint.classList.remove('hidden');ta.value=img.generalNotes||'';ta.focus()});
-    ta.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ta.blur()}});
-    ta.addEventListener('blur',function(){var img=IC.getCurrentImage();if(img)img.generalNotes=ta.value;show()});
-    ta.addEventListener('input',function(){var img=IC.getCurrentImage();if(img)img.generalNotes=ta.value});
-    IC.refreshGeneralNotes=show;
-});
 
 IC.getCanvasDataURL=function(){return canvas?canvas.toDataURL({format:'png',multiplier:2}):null};
 

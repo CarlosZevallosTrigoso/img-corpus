@@ -13,6 +13,7 @@ IC.state = {
     diary: [],             // {id, date, text}
     auditLog: [],          // {date, text}
     customMetaSchema: [],  // {id, name, type, options:[]}
+    annotationLevels: ['Nivel 1', 'Nivel 2', 'Nivel 3'],
     currentImageId: null,
     batchMode: false,
     batchSelected: new Set(),
@@ -27,11 +28,10 @@ IC.state = {
 /*  IMAGE SHAPE:
     {id, name, dataUrl,
      metadata:{source,author,date,medium,context,custom,...dynamic},
-     tags:[], generalNotes:'',
+     tags:[], notes:[{id,text}],
      annotations:[{
        id, number, categoryId, type,
-       description:'', interpretation:'', memo:'',
-       badges:[{uid,x,y}], chainIds:[], _pending:bool
+       levels:{}, badges:[{uid,x,y}], chainIds:[], _pending:bool
      }],
      relations:[{id,fromAnnId,toAnnId,type,note}],
      canvasObjects:[], collectionIds:[]}
@@ -46,6 +46,7 @@ IC.pushUndo = function() {
         categories: IC.state.categories,
         collections: IC.state.collections,
         chains: IC.state.chains,
+        annotationLevels: IC.state.annotationLevels,
     }));
     if (IC.undoStack.length > IC.MAX_UNDO) IC.undoStack.shift();
     IC.redoStack = [];
@@ -53,19 +54,21 @@ IC.pushUndo = function() {
 
 IC.undo = function() {
     if (!IC.undoStack.length) return;
-    IC.redoStack.push(JSON.stringify({ images:IC.state.images, categories:IC.state.categories, collections:IC.state.collections, chains:IC.state.chains }));
+    IC.redoStack.push(JSON.stringify({ images:IC.state.images, categories:IC.state.categories, collections:IC.state.collections, chains:IC.state.chains, annotationLevels:IC.state.annotationLevels }));
     var s = JSON.parse(IC.undoStack.pop());
     IC.state.images = s.images; IC.state.categories = s.categories;
     IC.state.collections = s.collections; IC.state.chains = s.chains;
+    IC.state.annotationLevels = s.annotationLevels || IC.state.annotationLevels;
     IC.refreshAll();
 };
 
 IC.redo = function() {
     if (!IC.redoStack.length) return;
-    IC.undoStack.push(JSON.stringify({ images:IC.state.images, categories:IC.state.categories, collections:IC.state.collections, chains:IC.state.chains }));
+    IC.undoStack.push(JSON.stringify({ images:IC.state.images, categories:IC.state.categories, collections:IC.state.collections, chains:IC.state.chains, annotationLevels:IC.state.annotationLevels }));
     var s = JSON.parse(IC.redoStack.pop());
     IC.state.images = s.images; IC.state.categories = s.categories;
     IC.state.collections = s.collections; IC.state.chains = s.chains;
+    IC.state.annotationLevels = s.annotationLevels || IC.state.annotationLevels;
     IC.refreshAll();
 };
 
@@ -160,148 +163,258 @@ IC.updateCategorySelects = function() {
 IC.renderAnnotationsPanel = function(img) {
     if (!img) return;
     if (IC.updateScopeIndicators) IC.updateScopeIndicators();
-    if (IC.refreshGeneralNotes) IC.refreshGeneralNotes();
     if (IC.updateMarkerSelect) IC.updateMarkerSelect();
+
+    // Migrate old data format
+    if (img.generalNotes && (!img.notes || !img.notes.length)) {
+        img.notes = [{ id: IC.uid(), text: img.generalNotes }];
+        delete img.generalNotes;
+    }
+    if (!img.notes) img.notes = [];
+    (img.annotations || []).forEach(function(a) {
+        if (!a.levels) {
+            a.levels = {};
+            if (a.description) { a.levels['Nivel 1'] = a.description; delete a.description; }
+            if (a.interpretation) { a.levels['Nivel 2'] = a.interpretation; delete a.interpretation; }
+            if (a.memo) { a.levels['Nivel 3'] = a.memo; delete a.memo; }
+        }
+    });
+
+    IC.renderNotesList(img);
+    IC.renderLevelsList();
+
     var container = document.getElementById('annList');
     var countEl = document.getElementById('annCount');
-    if (!img.annotations||!img.annotations.length) {
-        container.innerHTML='<p style="color:var(--t3);font-size:11px;padding:6px 0">Sin anotaciones.</p>';
-        countEl.textContent='0';
+    if (!img.annotations || !img.annotations.length) {
+        container.innerHTML = '<p style="color:var(--t3);font-size:11px;padding:6px 0">Sin anotaciones.</p>';
+        countEl.textContent = '0';
         IC.renderRelationsPanel(img);
+        if (IC.setupAnnotationHover) IC.setupAnnotationHover();
         return;
     }
     countEl.textContent = img.annotations.length;
 
+    var levels = IC.state.annotationLevels;
+
     container.innerHTML = img.annotations.map(function(ann) {
         var cat = IC.getCategoryById(ann.categoryId);
-        var cc = cat?cat.color:'#888';
-        var catOpts = IC.state.categories.map(function(c){return '<option value="'+c.id+'"'+(c.id===ann.categoryId?' selected':'')+'>'+IC.esc(c.name)+'</option>'}).join('');
-
-        function field(key, icon, label, placeholder) {
-            var val = ann[key]||'';
-            var empty = !val.trim();
-            return '<div class="ann-field"><div class="ann-field-label"><span class="material-symbols-outlined">'+icon+'</span>'+label+'</div>'+
-                '<div class="ann-note-display'+(empty?' empty':'')+'" data-ann="'+ann.id+'" data-key="'+key+'">'+(empty?placeholder:IC.esc(val))+'</div>'+
-                '<textarea class="ann-note-edit hidden" data-ann="'+ann.id+'" data-key="'+key+'" placeholder="'+placeholder+'">'+IC.esc(val)+'</textarea></div>';
-        }
-
-        var chainLinks = (ann.chainIds||[]).map(function(cid) {
-            var ch = IC.state.chains.find(function(c){return c.id===cid});
-            return ch?'<span class="ann-chain-link" data-chain="'+cid+'"><span class="material-symbols-outlined">link</span>'+IC.esc(ch.name)+'</span>':'';
+        var cc = cat ? cat.color : '#888';
+        var catOpts = IC.state.categories.map(function(c) {
+            return '<option value="' + c.id + '"' + (c.id === ann.categoryId ? ' selected' : '') + '>' + IC.esc(c.name) + '</option>';
         }).join('');
 
-        return '<div class="ann-item" data-ann="'+ann.id+'" style="border-left-color:'+cc+'">'+
-            '<div class="ann-hdr">'+
-                '<span class="ann-num" style="background:'+cc+'">'+ann.number+'</span>'+
-                '<select class="ann-cat-sel" data-ann="'+ann.id+'">'+catOpts+'</select>'+
-                '<button class="ann-del" data-ann="'+ann.id+'"><span class="material-symbols-outlined">close</span></button>'+
-            '</div>'+
-            field('description','visibility','Descripción','Qué se ve...')+
-            field('interpretation','psychology','Interpretación','Qué significa...')+
-            field('memo','edit_note','Memo reflexivo','Dudas, hipótesis...')+
-            (chainLinks?'<div style="margin-top:3px">'+chainLinks+'</div>':'')+
+        var fieldsHTML = levels.map(function(lvl, i) {
+            var val = ann.levels[lvl] || '';
+            var empty = !val.trim();
+            return '<div class="ann-field"><div class="ann-field-label">' + IC.esc(lvl) + '</div>' +
+                '<div class="ann-note-display' + (empty ? ' empty' : '') + '" data-ann="' + ann.id + '" data-key="' + IC.esc(lvl) + '">' + (empty ? 'Clic para escribir...' : IC.esc(val)) + '</div>' +
+                '<textarea class="ann-note-edit hidden" data-ann="' + ann.id + '" data-key="' + IC.esc(lvl) + '">' + IC.esc(val) + '</textarea></div>';
+        }).join('');
+
+        var chainLinks = (ann.chainIds || []).map(function(cid) {
+            var ch = IC.state.chains.find(function(c) { return c.id === cid; });
+            return ch ? '<span class="ann-chain-link" data-chain="' + cid + '"><span class="material-symbols-outlined">link</span>' + IC.esc(ch.name) + '</span>' : '';
+        }).join('');
+
+        return '<div class="ann-item" data-ann="' + ann.id + '" style="border-left-color:' + cc + '">' +
+            '<div class="ann-hdr">' +
+                '<span class="ann-num" style="background:' + cc + '">' + ann.number + '</span>' +
+                '<select class="ann-cat-sel" data-ann="' + ann.id + '">' + catOpts + '</select>' +
+                '<button class="ann-del" data-ann="' + ann.id + '"><span class="material-symbols-outlined">close</span></button>' +
+            '</div>' +
+            fieldsHTML +
+            (chainLinks ? '<div style="margin-top:3px">' + chainLinks + '</div>' : '') +
         '</div>';
     }).join('');
 
-    // Wire events
+    // Wire level field display/edit
     container.querySelectorAll('.ann-note-display').forEach(function(el) {
         el.addEventListener('click', function(e) {
             e.stopPropagation();
-            var ta = container.querySelector('textarea[data-ann="'+el.dataset.ann+'"][data-key="'+el.dataset.key+'"]');
+            var ta = container.querySelector('textarea[data-ann="' + el.dataset.ann + '"][data-key="' + el.dataset.key + '"]');
             if (!ta) return;
             el.classList.add('hidden'); ta.classList.remove('hidden'); ta.focus();
         });
     });
 
     container.querySelectorAll('.ann-note-edit').forEach(function(el) {
-        el.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();el.blur()}});
+        el.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); } });
         el.addEventListener('blur', function() {
-            var ann = img.annotations.find(function(a){return a.id===el.dataset.ann});
+            var ann = img.annotations.find(function(a) { return a.id === el.dataset.ann; });
             if (!ann) return;
-            ann[el.dataset.key] = el.value;
+            ann.levels[el.dataset.key] = el.value;
 
-            // Pending: remove if ALL three fields empty
-            if (ann._pending && !ann.description.trim() && !ann.interpretation.trim() && !ann.memo.trim()) {
-                if (IC.canvas) {
-                    IC.canvas.getObjects().filter(function(o){return o.annotationId===ann.id}).forEach(function(o){IC.canvas.remove(o)});
-                    IC.canvas.renderAll();
+            // Pending: remove if ALL levels empty
+            if (ann._pending) {
+                var allEmpty = IC.state.annotationLevels.every(function(lvl) { return !(ann.levels[lvl] || '').trim(); });
+                if (allEmpty) {
+                    if (IC.canvas) {
+                        IC.canvas.getObjects().filter(function(o) { return o.annotationId === ann.id; }).forEach(function(o) { IC.canvas.remove(o); });
+                        IC.canvas.renderAll();
+                    }
+                    img.annotations = img.annotations.filter(function(a) { return a.id !== ann.id; });
+                    IC.saveCurrentCanvasState(); IC.renderAnnotationsPanel(img);
+                    if (IC.updateMarkerSelect) IC.updateMarkerSelect();
+                    return;
                 }
-                img.annotations = img.annotations.filter(function(a){return a.id!==ann.id});
-                IC.saveCurrentCanvasState(); IC.renderAnnotationsPanel(img);
-                if(IC.updateMarkerSelect) IC.updateMarkerSelect();
-                return;
+                delete ann._pending;
             }
-            if (ann._pending && (ann.description.trim()||ann.interpretation.trim()||ann.memo.trim())) delete ann._pending;
 
             IC.saveCurrentCanvasState();
-            var disp = container.querySelector('.ann-note-display[data-ann="'+el.dataset.ann+'"][data-key="'+el.dataset.key+'"]');
+            var disp = container.querySelector('.ann-note-display[data-ann="' + el.dataset.ann + '"][data-key="' + el.dataset.key + '"]');
             if (disp) {
                 var t = el.value.trim();
-                disp.textContent = t || (el.dataset.key==='description'?'Qué se ve...':el.dataset.key==='interpretation'?'Qué significa...':'Dudas, hipótesis...');
-                disp.classList.toggle('empty',!t);
+                disp.textContent = t || 'Clic para escribir...';
+                disp.classList.toggle('empty', !t);
                 disp.classList.remove('hidden');
             }
             el.classList.add('hidden');
         });
         el.addEventListener('input', function() {
-            var ann = img.annotations.find(function(a){return a.id===el.dataset.ann});
-            if (ann) ann[el.dataset.key] = el.value;
+            var ann = img.annotations.find(function(a) { return a.id === el.dataset.ann; });
+            if (ann) ann.levels[el.dataset.key] = el.value;
         });
     });
 
+    // Category change
     container.querySelectorAll('.ann-cat-sel').forEach(function(el) {
         el.addEventListener('change', function() {
-            var ann = img.annotations.find(function(a){return a.id===el.dataset.ann});
+            var ann = img.annotations.find(function(a) { return a.id === el.dataset.ann; });
             if (!ann) return;
-            IC.pushUndo(); var oldCat = IC.getCategoryById(ann.categoryId);
-            ann.categoryId = el.value;
-            var newCat = IC.getCategoryById(el.value);
-            IC.log('Anotación #'+ann.number+': categoría cambiada de "'+(oldCat?oldCat.name:'?')+'" a "'+(newCat?newCat.name:'?')+'"');
+            IC.pushUndo(); ann.categoryId = el.value;
             if (IC.updateAnnotationColors) IC.updateAnnotationColors(ann.id, el.value);
             IC.renderAnnotationsPanel(img);
         });
     });
 
+    // Delete
     container.querySelectorAll('.ann-del').forEach(function(el) {
         el.addEventListener('click', function() {
             IC.pushUndo();
-            if (IC.canvas) { IC.canvas.getObjects().filter(function(o){return o.annotationId===el.dataset.ann}).forEach(function(o){IC.canvas.remove(o)}); IC.canvas.renderAll(); }
-            var ann = img.annotations.find(function(a){return a.id===el.dataset.ann});
-            if (ann) IC.log('Anotación #'+ann.number+' eliminada');
-            img.annotations = img.annotations.filter(function(a){return a.id!==el.dataset.ann});
-            // Remove from chains
-            IC.state.chains.forEach(function(ch){ch.links=ch.links.filter(function(l){return l.annotationId!==el.dataset.ann})});
-            // Remove relations
-            img.relations = (img.relations||[]).filter(function(r){return r.fromAnnId!==el.dataset.ann&&r.toAnnId!==el.dataset.ann});
+            if (IC.canvas) { IC.canvas.getObjects().filter(function(o) { return o.annotationId === el.dataset.ann; }).forEach(function(o) { IC.canvas.remove(o); }); IC.canvas.renderAll(); }
+            img.annotations = img.annotations.filter(function(a) { return a.id !== el.dataset.ann; });
+            IC.state.chains.forEach(function(ch) { ch.links = ch.links.filter(function(l) { return l.annotationId !== el.dataset.ann; }); });
+            img.relations = (img.relations || []).filter(function(r) { return r.fromAnnId !== el.dataset.ann && r.toAnnId !== el.dataset.ann; });
             IC.saveCurrentCanvasState(); IC.renderAnnotationsPanel(img);
-            if(IC.updateMarkerSelect) IC.updateMarkerSelect();
+            if (IC.updateMarkerSelect) IC.updateMarkerSelect();
         });
     });
 
+    // Click to select on canvas
     container.querySelectorAll('.ann-item').forEach(function(el) {
         el.addEventListener('click', function(e) {
             if (e.target.closest('.ann-note-display,.ann-note-edit,.ann-cat-sel,.ann-del,.ann-chain-link')) return;
             if (!IC.canvas) return;
-            var obj = IC.canvas.getObjects().find(function(o){return o.annotationId===el.dataset.ann&&!o._isBadge});
+            var obj = IC.canvas.getObjects().find(function(o) { return o.annotationId === el.dataset.ann && !o._isBadge; });
             if (obj) { IC.canvas.setActiveObject(obj); IC.canvas.renderAll(); }
-        });
-    });
-
-    // Chain link click
-    container.querySelectorAll('.ann-chain-link').forEach(function(el) {
-        el.addEventListener('click', function(e) {
-            e.stopPropagation();
-            // Switch to chains tab
-            document.querySelectorAll('.rpanel-tab').forEach(function(t){t.classList.remove('active')});
-            document.querySelectorAll('.rpanel-content').forEach(function(p){p.classList.remove('active')});
-            document.querySelector('.rpanel-tab[data-rp="chains"]').classList.add('active');
-            document.getElementById('rpChains').classList.add('active');
-            if (IC.renderChainsPanel) IC.renderChainsPanel();
         });
     });
 
     IC.renderRelationsPanel(img);
     if (IC.setupAnnotationHover) IC.setupAnnotationHover();
+};
+
+// ========== NOTES LIST (multiple notes per image) ==========
+IC.renderNotesList = function(img) {
+    var c = document.getElementById('notesList');
+    if (!img) { c.innerHTML = ''; return; }
+    if (!img.notes) img.notes = [];
+
+    c.innerHTML = img.notes.map(function(note, idx) {
+        var empty = !note.text.trim();
+        return '<div class="note-item" data-note="' + note.id + '">' +
+            '<div class="note-item-hdr"><span class="note-item-label">Nota ' + (idx + 1) + '</span>' +
+            '<button class="note-item-rm" data-note="' + note.id + '">&times;</button></div>' +
+            '<div class="note-display' + (empty ? ' empty' : '') + '" data-note="' + note.id + '">' + (empty ? 'Clic para escribir...' : IC.esc(note.text)) + '</div>' +
+            '<textarea class="note-textarea hidden" data-note="' + note.id + '">' + IC.esc(note.text) + '</textarea>' +
+        '</div>';
+    }).join('');
+
+    if (!img.notes.length) {
+        c.innerHTML = '<p style="color:var(--t3);font-size:10px">Sin notas. Usa + para agregar.</p>';
+    }
+
+    // Display/edit
+    c.querySelectorAll('.note-display[data-note]').forEach(function(el) {
+        el.addEventListener('click', function() {
+            var ta = c.querySelector('textarea[data-note="' + el.dataset.note + '"]');
+            if (!ta) return;
+            el.classList.add('hidden'); ta.classList.remove('hidden'); ta.focus();
+        });
+    });
+
+    c.querySelectorAll('.note-textarea[data-note]').forEach(function(el) {
+        el.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); } });
+        el.addEventListener('blur', function() {
+            var note = img.notes.find(function(n) { return n.id === el.dataset.note; });
+            if (note) note.text = el.value;
+            IC.renderNotesList(img);
+        });
+        el.addEventListener('input', function() {
+            var note = img.notes.find(function(n) { return n.id === el.dataset.note; });
+            if (note) note.text = el.value;
+        });
+    });
+
+    // Remove
+    c.querySelectorAll('.note-item-rm').forEach(function(b) {
+        b.addEventListener('click', function(e) {
+            e.stopPropagation();
+            IC.pushUndo();
+            img.notes = img.notes.filter(function(n) { return n.id !== b.dataset.note; });
+            IC.renderNotesList(img);
+        });
+    });
+};
+
+// ========== LEVELS LIST (configurable) ==========
+IC.renderLevelsList = function() {
+    var c = document.getElementById('levelsList');
+    c.innerHTML = IC.state.annotationLevels.map(function(lvl, idx) {
+        return '<div class="level-item"><span class="level-name" contenteditable="true" data-idx="' + idx + '">' + IC.esc(lvl) + '</span>' +
+            '<button class="level-rm" data-idx="' + idx + '" title="Eliminar nivel">&times;</button></div>';
+    }).join('');
+
+    // Rename
+    c.querySelectorAll('.level-name').forEach(function(el) {
+        el.addEventListener('blur', function() {
+            var idx = parseInt(el.dataset.idx);
+            var oldName = IC.state.annotationLevels[idx];
+            var newName = el.textContent.trim();
+            if (!newName || newName === oldName) { el.textContent = oldName; return; }
+            IC.pushUndo();
+            IC.state.annotationLevels[idx] = newName;
+            // Rename in all annotations
+            IC.state.images.forEach(function(img) {
+                (img.annotations || []).forEach(function(a) {
+                    if (a.levels && a.levels[oldName] !== undefined) {
+                        a.levels[newName] = a.levels[oldName];
+                        delete a.levels[oldName];
+                    }
+                });
+            });
+            IC.log('Nivel renombrado: "' + oldName + '" → "' + newName + '"');
+            var cur = IC.getCurrentImage(); if (cur) IC.renderAnnotationsPanel(cur);
+        });
+        el.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+    });
+
+    // Remove
+    c.querySelectorAll('.level-rm').forEach(function(b) {
+        b.addEventListener('click', function() {
+            if (IC.state.annotationLevels.length <= 1) { alert('Debe haber al menos un nivel.'); return; }
+            var idx = parseInt(b.dataset.idx);
+            var name = IC.state.annotationLevels[idx];
+            if (!confirm('¿Eliminar nivel "' + name + '"? Se perderá el texto de ese nivel en todas las anotaciones.')) return;
+            IC.pushUndo();
+            IC.state.annotationLevels.splice(idx, 1);
+            IC.state.images.forEach(function(img) {
+                (img.annotations || []).forEach(function(a) { if (a.levels) delete a.levels[name]; });
+            });
+            IC.log('Nivel eliminado: "' + name + '"');
+            var cur = IC.getCurrentImage(); if (cur) IC.renderAnnotationsPanel(cur);
+        });
+    });
 };
 
 // ========== RELATIONS PANEL ==========
@@ -514,6 +627,36 @@ function initCategoryUI() {
         IC.log('Categoría creada: '+name);
         IC.renderCategories(); IC.updateCategorySelects();
         IC.closeModal('modalCategory');
+    });
+}
+
+// ========== NOTES AND LEVELS ==========
+function initNotesAndLevels() {
+    document.getElementById('btnAddNote').addEventListener('click', function() {
+        var img = IC.getCurrentImage();
+        if (!img) return;
+        if (!img.notes) img.notes = [];
+        IC.pushUndo();
+        var note = { id: IC.uid(), text: '' };
+        img.notes.push(note);
+        IC.renderNotesList(img);
+        // Auto-focus the new note
+        setTimeout(function() {
+            var disp = document.querySelector('.note-display[data-note="' + note.id + '"]');
+            if (disp) disp.click();
+        }, 50);
+    });
+
+    document.getElementById('btnAddLevel').addEventListener('click', function() {
+        var name = prompt('Nombre del nuevo nivel:');
+        if (!name || !name.trim()) return;
+        name = name.trim();
+        if (IC.state.annotationLevels.indexOf(name) >= 0) { alert('Ya existe un nivel con ese nombre.'); return; }
+        IC.pushUndo();
+        IC.state.annotationLevels.push(name);
+        IC.log('Nivel de análisis agregado: "' + name + '"');
+        var img = IC.getCurrentImage();
+        if (img) IC.renderAnnotationsPanel(img);
     });
 }
 
@@ -946,6 +1089,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTabs('.rpanel-tab','.rpanel-content','rp');
     initHeader();
     initCategoryUI();
+    initNotesAndLevels();
     initSelection();
     initToolbar();
     initKeyboard();

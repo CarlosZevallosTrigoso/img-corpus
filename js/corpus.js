@@ -43,7 +43,7 @@ function loadFiles(files) {
             slots[i] = {
                 id: IC.uid(), name: f.name, dataUrl: ev.target.result,
                 metadata: { source: '', author: '', date: '', medium: '', context: '', custom: '' },
-                tags: [], generalNotes: '', annotations: [], relations: [],
+                tags: [], notes: [], annotations: [], relations: [],
                 canvasObjects: [], collectionIds: []
             };
             loaded++;
@@ -155,7 +155,7 @@ IC.renderGallery = function() {
         }).join('');
         var icons = '';
         if ((img.tags || []).length) icons += '<span class="item-status-icon material-symbols-outlined">label</span>';
-        if (img.generalNotes) icons += '<span class="item-status-icon material-symbols-outlined">notes</span>';
+        if ((img.notes || []).some(function(n) { return n.text.trim(); })) icons += '<span class="item-status-icon material-symbols-outlined">notes</span>';
         if ((img.collectionIds || []).length) icons += '<span class="item-status-icon material-symbols-outlined">folder</span>';
         status = dots || icons ? '<div class="item-status">' + dots + icons + '</div>' : '';
 
@@ -349,14 +349,12 @@ IC.renderGridView = function() {
 
 // ========== CLEAR PANELS ==========
 function clearPanels() {
-    document.getElementById('genNotes').value = '';
-    document.getElementById('genNotesDisplay').textContent = 'Clic para agregar...';
-    document.getElementById('genNotesDisplay').classList.add('empty');
-    document.getElementById('genNotesDisplay').classList.remove('hidden');
-    document.getElementById('genNotes').classList.add('hidden');
-    document.getElementById('genNotesHint').classList.add('hidden');
-    document.getElementById('annList').innerHTML = '';
-    document.getElementById('annCount').textContent = '0';
+    var nl = document.getElementById('notesList');
+    if (nl) nl.innerHTML = '';
+    var al = document.getElementById('annList');
+    if (al) al.innerHTML = '';
+    var ac = document.getElementById('annCount');
+    if (ac) ac.textContent = '0';
 }
 
 })();
