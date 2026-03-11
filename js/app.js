@@ -441,8 +441,17 @@ IC.setViewMode = function(mode) {
         canvasEl.classList.remove('hidden');
         btnSingle.classList.add('active');
         btnGrid.classList.remove('active');
-        const img = IC.getCurrentImage();
-        if (img) IC.loadImageToCanvas(img);
+        // Resize canvas after container becomes visible again
+        setTimeout(() => {
+            if (IC.canvas) {
+                const r = canvasEl.getBoundingClientRect();
+                IC.canvas.setWidth(r.width);
+                IC.canvas.setHeight(r.height - 4);
+                IC.canvas.renderAll();
+            }
+            const img = IC.getCurrentImage();
+            if (img) IC.loadImageToCanvas(img);
+        }, 50);
     }
 };
 
