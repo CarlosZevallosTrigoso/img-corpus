@@ -168,6 +168,15 @@ IC.applyTool = function(tool) {
         if (!obj.isBadge) obj.selectable = true;
     });
 
+    // Show/hide marker number selector
+    const markerSelect = document.getElementById('markerNumberSelect');
+    if (tool === 'marker') {
+        markerSelect.classList.remove('hidden');
+        IC.updateMarkerSelect();
+    } else {
+        markerSelect.classList.add('hidden');
+    }
+
     if (tool === 'freedraw') {
         if (!IC.hasCategories()) {
             IC.openModal('modalAddCategory');
@@ -321,65 +330,115 @@ function onMouseUp(opt) {
 function createArrow(x1, y1, x2, y2) {
     const color = IC.getCategoryColor(IC.state.activeCategory);
     const angle = Math.atan2(y2 - y1, x2 - x1);
-    const headLen = 14;
+    const headLen = 16;
+    const headAngle = Math.PI / 7;
 
-    const line = new fabric.Line([x1, y1, x2, y2], {
+    // Arrowhead points
+    const hx1 = x2 - headLen * Math.cos(angle - headAngle);
+    const hy1 = y2 - headLen * Math.sin(angle - headAngle);
+    const hx2 = x2 - headLen * Math.cos(angle + headAngle);
+    const hy2 = y2 - headLen * Math.sin(angle + headAngle);
+
+    const pathStr = [
+        'M', x1, y1,
+        'L', x2, y2,
+        'M', hx1, hy1,
+        'L', x2, y2,
+        'L', hx2, hy2,
+    ].join(' ');
+
+    const arrow = new fabric.Path(pathStr, {
+        fill: '',
         stroke: color,
         strokeWidth: 2.5,
-    });
-
-    const head = new fabric.Triangle({
-        left: x2,
-        top: y2,
-        originX: 'center',
-        originY: 'center',
-        angle: (angle * 180 / Math.PI) + 90,
-        width: headLen,
-        height: headLen,
-        fill: color,
-    });
-
-    const group = new fabric.Group([line, head], {
+        strokeLineCap: 'round',
+        strokeLineJoin: 'round',
         selectable: true,
     });
 
-    return group;
+    return arrow;
 }
 
 function createAnnotationAtPoint(x, y) {
     const img = IC.getCurrentImage();
     if (!img) return;
 
+    const markerSelect = document.getElementById('markerNumberSelect');
+    const selectedValue = markerSelect.value;
+
     IC.pushUndo();
 
-    const annId = IC.uid();
-    const annNum = (img.annotations ? img.annotations.length : 0) + 1;
     const catId = IC.state.activeCategory;
     const color = IC.getCategoryColor(catId);
 
-    // Create number badge on canvas
-    const badge = createBadge(x, y, annNum, color);
-    badge.annotationId = annId;
-    badge.annotationNumber = annNum;
-    badge.categoryId = catId;
-    badge.isAnnotation = true;
-    badge.isBadge = true;
-    canvas.add(badge);
-    canvas.renderAll();
+    if (selectedValue === 'new') {
+        // Create new annotation + badge
+        const annId = IC.uid();
+        const annNum = (img.annotations ? img.annotations.length : 0) + 1;
 
-    // Create annotation data
-    if (!img.annotations) img.annotations = [];
-    img.annotations.push({
-        id: annId,
-        number: annNum,
-        categoryId: catId,
-        note: '',
-        type: 'marker',
-    });
+        const badge = createBadge(x, y, annNum, color);
+        badge.annotationId = annId;
+        badge.annotationNumber = annNum;
+        badge.categoryId = catId;
+        badge.isAnnotation = true;
+        badge.isBadge = true;
+        canvas.add(badge);
+        canvas.renderAll();
 
-    IC.saveCurrentCanvasState();
-    IC.renderAnnotationsPanel(img);
+        if (!img.annotations) img.annotations = [];
+        img.annotations.push({
+            id: annId,
+            number: annNum,
+            categoryId: catId,
+            note: '',
+            type: 'marker',
+        });
+
+        IC.saveCurrentCanvasState();
+        IC.renderAnnotationsPanel(img);
+        IC.updateMarkerSelect();
+    } else {
+        // Place additional badge for existing annotation
+        const ann = img.annotations.find(a => a.id === selectedValue);
+        if (!ann) return;
+
+        const badge = createBadge(x, y, ann.number, IC.getCategoryColor(ann.categoryId));
+        badge.annotationId = ann.id;
+        badge.annotationNumber = ann.number;
+        badge.categoryId = ann.categoryId;
+        badge.isAnnotation = true;
+        badge.isBadge = true;
+        canvas.add(badge);
+        canvas.renderAll();
+
+        IC.saveCurrentCanvasState();
+    }
 }
+
+// ========== MARKER SELECT ==========
+IC.updateMarkerSelect = function() {
+    const img = IC.getCurrentImage();
+    const select = document.getElementById('markerNumberSelect');
+    if (!img || !select) return;
+
+    const prev = select.value;
+    let html = '<option value="new">+ Nuevo</option>';
+    if (img.annotations && img.annotations.length > 0) {
+        html += img.annotations.map(ann => {
+            const cat = IC.getCategoryById(ann.categoryId);
+            const catName = cat ? cat.name : '';
+            const notePreview = ann.note ? (' — ' + ann.note.substring(0, 20)) : '';
+            return `<option value="${ann.id}">#${ann.number} ${catName}${notePreview}</option>`;
+        }).join('');
+    }
+    select.innerHTML = html;
+    // Restore previous selection if still valid
+    if (img.annotations && img.annotations.find(a => a.id === prev)) {
+        select.value = prev;
+    } else {
+        select.value = 'new';
+    }
+};
 
 function finalizeShape(shape) {
     const img = IC.getCurrentImage();
@@ -538,6 +597,9 @@ IC.renderAnnotationsPanel = function(img) {
 
     // Refresh general notes display
     if (IC.refreshGeneralNotes) IC.refreshGeneralNotes();
+
+    // Update marker number selector
+    if (IC.updateMarkerSelect) IC.updateMarkerSelect();
 
     if (!img.annotations || img.annotations.length === 0) {
         container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;padding:8px 0;">Sin anotaciones. Usa las herramientas para anotar la imagen.</p>';
