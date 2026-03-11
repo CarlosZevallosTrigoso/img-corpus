@@ -86,7 +86,7 @@
                 </div>
                 <div class="gallery-empty" id="galleryEmpty">
                     <span class="material-symbols-outlined">collections</span>
-                    <p>Agrega imágenes para comenzar</p>
+                    <p>Agrega o arrastra imágenes para comenzar</p>
                 </div>
             </div>
 
@@ -164,6 +164,12 @@
                         <span class="material-symbols-outlined">delete_outline</span>
                     </button>
                 </div>
+                <div class="tool-divider"></div>
+                <div class="tool-group bg-toggle">
+                    <button class="bg-btn active" data-bg="#111118" title="Negro"></button>
+                    <button class="bg-btn" data-bg="#555566" title="Gris"></button>
+                    <button class="bg-btn" data-bg="#e8e8e8" title="Blanco"></button>
+                </div>
                 <div class="tool-spacer"></div>
                 <div class="tool-group view-toggle">
                     <button class="tool-btn active" id="btnViewSingle" title="Vista individual (1)">
@@ -182,6 +188,11 @@
                     <span class="material-symbols-outlined">image</span>
                     <p>Selecciona una imagen del corpus</p>
                 </div>
+            </div>
+
+            <!-- Multi-image view (up to 4, Ctrl+click in sidebar) -->
+            <div class="multi-view hidden" id="multiView">
+                <!-- Panels rendered dynamically -->
             </div>
 
             <!-- Grid view container -->
