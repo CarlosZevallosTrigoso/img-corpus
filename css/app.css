@@ -577,7 +577,7 @@ input, textarea, select, button {
 }
 
 /* Canvas */
-.canvas-container {
+.canvas-wrap {
     flex: 1;
     position: relative;
     overflow: hidden;
@@ -587,8 +587,9 @@ input, textarea, select, button {
     background:
         radial-gradient(circle at 50% 50%, var(--bg-main) 0%, var(--bg-deep) 100%);
 }
+.canvas-wrap.hidden { display: none; }
 
-.canvas-container .canvas-container {
+.canvas-wrap .canvas-container {
     /* Fabric.js creates its own .canvas-container wrapper */
     position: absolute !important;
 }
