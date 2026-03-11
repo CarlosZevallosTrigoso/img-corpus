@@ -169,6 +169,11 @@ IC.applyTool = function(tool) {
     });
 
     if (tool === 'freedraw') {
+        if (!IC.hasCategories()) {
+            IC.openModal('modalAddCategory');
+            IC.setTool('select');
+            return;
+        }
         canvas.isDrawingMode = true;
         canvas.freeDrawingBrush.color = IC.getCategoryColor(IC.state.activeCategory);
         canvas.freeDrawingBrush.width = 3;
@@ -190,6 +195,11 @@ function getPointer(e) {
 function onMouseDown(opt) {
     const tool = IC.state.activeTool;
     if (tool === 'select' || tool === 'freedraw') return;
+
+    if (!IC.hasCategories()) {
+        IC.openModal('modalAddCategory');
+        return;
+    }
 
     isDrawing = true;
     drawStart = getPointer(opt);
