@@ -541,6 +541,13 @@ input, textarea, select, button {
 }
 .tool-select:focus { border-color: var(--accent-primary); }
 
+.marker-select {
+    width: 72px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+.marker-select.hidden { display: none; }
+
 .zoom-level {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -1171,8 +1178,59 @@ input, textarea, select, button {
     gap: 2px;
 }
 
+.report-scope {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+}
+
+.report-scope-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.report-scope-title .material-symbols-outlined { font-size: 16px; }
+
+.report-scope-info {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.scope-toggle {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.scope-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s var(--ease);
+}
+.scope-btn:hover { border-color: var(--border-medium); color: var(--text-primary); }
+.scope-btn.active {
+    background: var(--accent-primary-dim);
+    border-color: rgba(78, 205, 196, 0.3);
+    color: var(--accent-primary);
+}
+
 /* ========== UTILITY ========== */
 .hidden { display: none !important; }
+
+/* Override for canvas container which uses flex */
+#canvasContainer.hidden { display: none !important; }
 
 /* Fabric.js overrides */
 .canvas-container canvas {
