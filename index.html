@@ -190,17 +190,19 @@
             <div class="rpanel-content active" id="rpAnnotations">
                 <div class="scope-indicator" id="annScope"></div>
                 <div class="rp-section">
-                    <h4>Notas generales <button class="info-btn" data-info="Notas libres sobre esta imagen. No vinculadas a ninguna marca visual.">i</button></h4>
-                    <div class="note-display empty" id="genNotesDisplay">Clic para agregar...</div>
-                    <textarea class="note-textarea hidden" id="genNotes" placeholder="Notas generales..."></textarea>
-                    <div class="note-hint hidden" id="genNotesHint">Enter = guardar · Shift+Enter = salto</div>
+                    <h4>Notas <button class="btn btn-xs btn-ghost" id="btnAddNote" title="Agregar nota"><span class="material-symbols-outlined">add</span></button> <button class="info-btn" data-info="Notas libres sobre esta imagen. Puedes agregar múltiples notas independientes.">i</button></h4>
+                    <div id="notesList"></div>
                 </div>
                 <div class="rp-section">
-                    <h4>Anotaciones <span class="ann-count" id="annCount">0</span> <button class="info-btn" data-info="Cada anotación tiene tres campos: Descripción (qué se ve), Interpretación (qué significa en tu marco teórico) y Memo reflexivo (dudas, hipótesis). Si dejas los tres vacíos, la anotación se elimina.">i</button></h4>
+                    <h4>Anotaciones <span class="ann-count" id="annCount">0</span> <button class="info-btn" data-info="Cada anotación tiene niveles de análisis configurables. Si dejas todos los niveles vacíos, la anotación se elimina. Puedes agregar o renombrar niveles desde el botón de configuración.">i</button></h4>
                     <div id="annList"></div>
                 </div>
                 <div class="rp-section">
-                    <h4>Relaciones intra-imagen <button class="info-btn" data-info="Vincula dos anotaciones dentro de la misma imagen. Usa la herramienta Relación (L) en el toolbar: clic en un badge, luego en otro, y elige el tipo de relación (contraste, jerarquía, repetición, etc).">i</button></h4>
+                    <h4>Niveles de análisis <button class="btn btn-xs btn-ghost" id="btnAddLevel" title="Agregar nivel"><span class="material-symbols-outlined">add</span></button> <button class="info-btn" data-info="Los niveles organizan el análisis en capas. Cada anotación tendrá campos para cada nivel definido. Renombra haciendo clic. Ejemplos: 'Denotativo / Connotativo / Contextual' o 'Forma / Contenido / Circulación'.">i</button></h4>
+                    <div id="levelsList"></div>
+                </div>
+                <div class="rp-section">
+                    <h4>Relaciones intra-imagen <button class="info-btn" data-info="Vincula dos anotaciones dentro de la misma imagen. Usa la herramienta Relación (L): clic en un badge, luego en otro, y elige el tipo.">i</button></h4>
                     <div id="relationsList"></div>
                 </div>
             </div>
@@ -253,16 +255,14 @@
                     <div class="search-builder" id="searchBuilder">
                         <div class="search-row">
                             <select class="search-field" id="searchField">
-                                <option value="annotation">Texto de anotación</option>
-                                <option value="description">Descripción</option>
-                                <option value="interpretation">Interpretación</option>
-                                <option value="memo">Memo</option>
-                                <option value="tag">Etiqueta</option>
-                                <option value="category">Categoría</option>
-                                <option value="generalNotes">Notas generales</option>
-                                <option value="meta">Metadato</option>
-                                <option value="collection">Colección</option>
-                            </select>
+                            <option value="annotation">Texto de anotación (todos los niveles)</option>
+                            <option value="level">Nivel específico</option>
+                            <option value="tag">Etiqueta</option>
+                            <option value="category">Categoría</option>
+                            <option value="notes">Notas</option>
+                            <option value="meta">Metadato</option>
+                            <option value="collection">Colección</option>
+                        </select>
                             <input type="text" id="searchValue" placeholder="Buscar..." class="search-input">
                         </div>
                         <button class="btn btn-xs btn-accent" id="btnSearch" style="margin-top:6px"><span class="material-symbols-outlined">search</span> Buscar</button>
@@ -342,17 +342,16 @@
                 <div class="report-scope" id="reportScope"></div>
                 <div class="report-opts">
                     <h4>Seleccionar por colección</h4>
-                    <select id="reportCollection"><option value="">Todo el corpus / selección batch</option></select>
+                    <select id="reportCollection"><option value="">Todo el corpus / selección</option></select>
                     <h4 style="margin-top:10px">Registros a incluir</h4>
-                    <label class="ck"><input type="checkbox" id="rptAnnotations" checked> Anotaciones visuales</label>
-                    <label class="ck"><input type="checkbox" id="rptDescription" checked> Descripción</label>
-                    <label class="ck"><input type="checkbox" id="rptInterpretation" checked> Interpretación</label>
-                    <label class="ck"><input type="checkbox" id="rptMemo"> Memo reflexivo</label>
+                    <label class="ck"><input type="checkbox" id="rptAnnotations" checked> Anotaciones visuales (dibujos sobre imagen)</label>
+                    <label class="ck"><input type="checkbox" id="rptLevels" checked> Niveles de análisis</label>
+                    <div id="rptLevelsList" style="padding-left:20px"></div>
                     <label class="ck"><input type="checkbox" id="rptRelations" checked> Relaciones intra-imagen</label>
                     <label class="ck"><input type="checkbox" id="rptChains" checked> Cadenas analíticas</label>
                     <label class="ck"><input type="checkbox" id="rptMeta" checked> Metadatos</label>
                     <label class="ck"><input type="checkbox" id="rptTags" checked> Etiquetas</label>
-                    <label class="ck"><input type="checkbox" id="rptNotes" checked> Notas generales</label>
+                    <label class="ck"><input type="checkbox" id="rptNotes" checked> Notas</label>
                     <div class="mf" style="margin-top:8px"><label>Título</label><input type="text" id="rptTitle" placeholder="Análisis de corpus visual"></div>
                     <div class="mf"><label>Autor</label><input type="text" id="rptAuthor"></div>
                 </div>
