@@ -255,6 +255,12 @@ function initTagListeners() {
 // ========== CLEAR PANELS ==========
 function clearPanels() {
     document.getElementById('generalNotes').value = '';
+    document.getElementById('generalNotes').classList.add('hidden');
+    const gnd = document.getElementById('generalNotesDisplay');
+    gnd.textContent = 'Clic para agregar notas...';
+    gnd.classList.add('empty');
+    gnd.classList.remove('hidden');
+    document.getElementById('generalNotesHint').style.display = 'none';
     document.getElementById('annotationsList').innerHTML = '';
     document.getElementById('annotationCount').textContent = '0';
     document.getElementById('metaSource').value = '';
