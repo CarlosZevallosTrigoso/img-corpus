@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>img-corpus v2 — Análisis Visual de Corpus</title>
+    <title>img-corpus v.0.5 (beta) — Análisis Visual de Corpus</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
@@ -14,7 +14,7 @@
     <!-- HEADER -->
     <header id="app-header">
         <div class="header-left">
-            <h1 class="logo"><span class="logo-img">img</span><span class="logo-dash">-</span><span class="logo-corpus">corpus</span> <span class="logo-ver">v2</span></h1>
+            <a href="javascript:location.reload()" class="logo"><span class="logo-img">img</span><span class="logo-dash">-</span><span class="logo-corpus">corpus</span> <span class="logo-ver">v.0.5 (beta)</span></a>
         </div>
         <div class="header-center">
             <div class="session-name" id="sessionName" contenteditable="true" spellcheck="false">Sesión sin título</div>
@@ -79,7 +79,12 @@
                         <span class="material-symbols-outlined">collections</span>
                         <p>Arrastra imágenes aquí</p>
                     </div>
-                    <div class="gallery-hint" id="galleryHint">⌘/Ctrl+clic para seleccionar varias</div>
+                    <div class="gallery-hint" id="galleryHint">⌘/Ctrl+clic para seleccionar · Flechas ←→ para navegar</div>
+                </div>
+                <div class="thumb-slider-row">
+                    <span class="material-symbols-outlined" style="font-size:12px">photo_size_select_small</span>
+                    <input type="range" id="thumbSlider" min="50" max="180" value="90" class="thumb-slider">
+                    <span class="material-symbols-outlined" style="font-size:16px">photo_size_select_large</span>
                 </div>
                 <!-- Categories -->
                 <div class="side-section">
@@ -107,6 +112,9 @@
                 </div>
             </div>
         </aside>
+
+        <!-- Resize handle left -->
+        <div class="resize-handle" id="resizeLeft"></div>
 
         <!-- WORKSPACE -->
         <section id="workspace">
@@ -164,6 +172,9 @@
             <div class="concordance-view hidden" id="concordanceView"></div>
             <div class="graph-view hidden" id="graphView"><svg id="graphSvg"></svg></div>
         </section>
+
+        <!-- Resize handle right -->
+        <div class="resize-handle" id="resizeRight"></div>
 
         <!-- RIGHT PANEL -->
         <aside id="rightPanel">
