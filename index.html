@@ -127,6 +127,9 @@
                     <button class="tool-btn" data-tool="marker" title="Marcador numérico (M)">
                         <span class="material-symbols-outlined">pin_drop</span>
                     </button>
+                    <select id="markerNumberSelect" class="tool-select marker-select hidden" title="Número de anotación">
+                        <option value="new">+ Nuevo</option>
+                    </select>
                 </div>
                 <div class="tool-divider"></div>
                 <div class="tool-group">
@@ -330,6 +333,9 @@
                 <button class="btn btn-ghost modal-close">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="report-scope" id="reportScope">
+                    <!-- Dynamically updated -->
+                </div>
                 <div class="report-options">
                     <label class="checkbox-label">
                         <input type="checkbox" id="reportIncludeAnnotations" checked> Incluir anotaciones visuales
