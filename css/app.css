@@ -80,6 +80,11 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;color:inherit
 .gallery-empty p{font-size:11px}
 .gallery-empty.hidden{display:none}
 .gallery-scroll.drag-over{background:var(--ac-dim);outline:2px dashed var(--ac);outline-offset:-3px}
+.gallery-item.dragging{opacity:.35;border-color:var(--ac)!important}
+.gallery-item.drag-above{border-top:3px solid var(--ac)!important;border-radius:0}
+.gallery-item.drag-below{border-bottom:3px solid var(--ac)!important;border-radius:0}
+.gallery-item{cursor:grab}
+.gallery-item:active{cursor:grabbing}
 .side-section{border-top:1px solid var(--brd);padding:6px 8px}
 .section-hdr{display:flex;align-items:center;justify-content:space-between}
 .section-hdr h3{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--t3)}
