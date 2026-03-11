@@ -159,6 +159,7 @@ IC.updateCategorySelects = function() {
 // ========== ANNOTATIONS PANEL (structured) ==========
 IC.renderAnnotationsPanel = function(img) {
     if (!img) return;
+    if (IC.updateScopeIndicators) IC.updateScopeIndicators();
     if (IC.refreshGeneralNotes) IC.refreshGeneralNotes();
     if (IC.updateMarkerSelect) IC.updateMarkerSelect();
     var container = document.getElementById('annList');
@@ -507,6 +508,7 @@ function initSelection() {
         document.getElementById('selCount').textContent = count;
         if (count > 0) bar.classList.remove('hidden');
         else bar.classList.add('hidden');
+        if (IC.updateScopeIndicators) IC.updateScopeIndicators();
     };
 
     // Toggle selection for an image
@@ -666,16 +668,142 @@ function initCustomMeta() {
 // ========== TAG INPUT ==========
 function initTagInput() {
     function add() {
-        var img=IC.getCurrentImage(); if(!img) return;
-        var raw=document.getElementById('tagInput').value.trim().toLowerCase();
-        if(!raw) return;
+        var img = IC.getCurrentImage();
+        if (!img) return;
+        var raw = document.getElementById('tagInput').value.trim().toLowerCase();
+        if (!raw) return;
         IC.pushUndo();
-        raw.split(',').map(function(t){return t.trim()}).filter(Boolean).forEach(function(t){if(img.tags.indexOf(t)<0) img.tags.push(t)});
-        document.getElementById('tagInput').value='';
-        IC.renderTagsPanel(img); IC.renderCorpusTags();
+        raw.split(',').map(function(t) { return t.trim(); }).filter(Boolean)
+            .forEach(function(t) { if (img.tags.indexOf(t) < 0) img.tags.push(t); });
+        document.getElementById('tagInput').value = '';
+        IC.renderTagsPanel(img);
+        IC.renderCorpusTags();
     }
-    document.getElementById('btnAddTag').addEventListener('click',add);
-    document.getElementById('tagInput').addEventListener('keydown',function(e){if(e.key==='Enter')add()});
+    document.getElementById('btnAddTag').addEventListener('click', add);
+    document.getElementById('tagInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') add(); });
+
+    // Batch apply tags to selection
+    var btnTagBatch = document.getElementById('btnTagBatch');
+    if (btnTagBatch) {
+        btnTagBatch.addEventListener('click', function() {
+            var img = IC.getCurrentImage();
+            if (!img || !IC.state.batchSelected.size) return;
+            var tags = img.tags.slice();
+            if (!tags.length) { alert('La imagen activa no tiene etiquetas para copiar.'); return; }
+            IC.pushUndo();
+            var count = 0;
+            IC.state.images.forEach(function(i) {
+                if (IC.state.batchSelected.has(i.id)) {
+                    tags.forEach(function(t) { if (i.tags.indexOf(t) < 0) { i.tags.push(t); count++; } });
+                }
+            });
+            IC.log('Etiquetas copiadas a ' + IC.state.batchSelected.size + ' imágenes');
+            IC.renderCorpusTags();
+        });
+    }
+
+    // Batch apply metadata to selection
+    var btnMetaBatch = document.getElementById('btnMetaBatch');
+    if (btnMetaBatch) {
+        btnMetaBatch.addEventListener('click', function() {
+            var img = IC.getCurrentImage();
+            if (!img || !IC.state.batchSelected.size) return;
+            var fields = ['source', 'author', 'date', 'medium', 'context', 'custom'];
+            // Only copy non-empty fields
+            var toCopy = {};
+            fields.forEach(function(k) { if (img.metadata[k]) toCopy[k] = img.metadata[k]; });
+            IC.state.customMetaSchema.forEach(function(f) {
+                var v = img.metadata['_' + f.id];
+                if (v) toCopy['_' + f.id] = v;
+            });
+            if (!Object.keys(toCopy).length) { alert('La imagen activa no tiene metadatos para copiar.'); return; }
+            IC.pushUndo();
+            IC.state.images.forEach(function(i) {
+                if (IC.state.batchSelected.has(i.id)) {
+                    Object.keys(toCopy).forEach(function(k) { i.metadata[k] = toCopy[k]; });
+                }
+            });
+            IC.log('Metadatos copiados a ' + IC.state.batchSelected.size + ' imágenes');
+        });
+    }
+}
+
+// ========== SCOPE INDICATORS ==========
+IC.updateScopeIndicators = function() {
+    var img = IC.getCurrentImage();
+    var selCount = IC.state.batchSelected.size;
+    var imgName = img ? img.name : '';
+    var imgIdx = img ? (IC.state.images.indexOf(img) + 1) : 0;
+
+    function setScope(elId, html) {
+        var el = document.getElementById(elId);
+        if (el) el.innerHTML = html;
+    }
+
+    var singleHTML = img
+        ? '<span class="material-symbols-outlined">image</span><span class="scope-name">' + imgIdx + '. ' + IC.esc(imgName) + '</span>'
+        : '<span class="material-symbols-outlined">image</span>Sin imagen seleccionada';
+
+    ['annScope', 'metaScope', 'tagScope'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.className = 'scope-indicator';
+        if (selCount > 0) {
+            el.classList.add('scope-multi');
+            el.innerHTML = '<span class="material-symbols-outlined">photo_library</span>' +
+                '<span class="scope-name">' + selCount + ' seleccionadas</span>' +
+                (img ? ' — editando: ' + imgIdx + '. ' + IC.esc(imgName) : '');
+        } else {
+            el.classList.add('scope-single');
+            el.innerHTML = singleHTML;
+        }
+    });
+
+    // Show/hide batch buttons
+    var btnTagBatch = document.getElementById('btnTagBatch');
+    var btnMetaBatch = document.getElementById('btnMetaBatch');
+    if (btnTagBatch) {
+        btnTagBatch.classList.toggle('hidden', selCount === 0);
+        document.getElementById('tagBatchCount').textContent = selCount;
+    }
+    if (btnMetaBatch) {
+        btnMetaBatch.classList.toggle('hidden', selCount === 0);
+        document.getElementById('metaBatchCount').textContent = selCount;
+    }
+};
+
+// ========== INFO POPOVER SYSTEM ==========
+function initInfoPopovers() {
+    // Create popover element
+    var popover = document.createElement('div');
+    popover.className = 'info-popover';
+    popover.id = 'infoPopover';
+    document.body.appendChild(popover);
+
+    var hideTimeout = null;
+
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.info-btn');
+        if (btn) {
+            e.stopPropagation();
+            var text = btn.dataset.info;
+            var rect = btn.getBoundingClientRect();
+            popover.textContent = text;
+            popover.style.left = Math.max(8, rect.left - 20) + 'px';
+            popover.style.top = (rect.bottom + 8) + 'px';
+
+            // Keep within viewport
+            if (rect.left + 280 > window.innerWidth) {
+                popover.style.left = (window.innerWidth - 290) + 'px';
+            }
+
+            popover.classList.add('visible');
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(function() { popover.classList.remove('visible'); }, 5000);
+        } else {
+            popover.classList.remove('visible');
+        }
+    });
 }
 
 // ========== MODALS GLOBAL ==========
@@ -708,6 +836,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initKeyboard();
     initCustomMeta();
     initTagInput();
+    initInfoPopovers();
     IC.renderCategories();
     IC.updateCategorySelects();
 
