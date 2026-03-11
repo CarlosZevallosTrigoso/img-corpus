@@ -15,18 +15,17 @@ IC.initCorpus = function() {
 function initFileInput() {
     const fileInput = document.getElementById('fileInput');
     fileInput.addEventListener('change', (e) => {
-        const files = Array.from(e.target.files);
+        const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
         if (files.length === 0) return;
 
         IC.pushUndo();
+        const slots = new Array(files.length);
         let loaded = 0;
 
-        files.forEach(file => {
-            if (!file.type.startsWith('image/')) return;
-
+        files.forEach((file, idx) => {
             const reader = new FileReader();
             reader.onload = (ev) => {
-                const imgObj = {
+                slots[idx] = {
                     id: IC.uid(),
                     name: file.name,
                     dataUrl: ev.target.result,
@@ -43,16 +42,16 @@ function initFileInput() {
                     annotations: [],
                     canvasObjects: [],
                 };
-                IC.state.images.push(imgObj);
                 loaded++;
 
                 if (loaded === files.length) {
+                    // Append in original file-picker order
+                    slots.forEach(img => IC.state.images.push(img));
                     IC.renderGallery();
                     IC.renderCorpusTags();
                     if (IC.state.viewMode === 'grid') {
                         IC.renderGridView();
                     }
-                    // Select first image if none selected
                     if (!IC.state.currentImageId && IC.state.images.length > 0) {
                         if (IC.state.viewMode === 'single') {
                             selectImage(IC.state.images[0].id);
@@ -63,6 +62,7 @@ function initFileInput() {
                 }
             };
             reader.readAsDataURL(file);
+        });
         });
 
         // Reset input
@@ -121,6 +121,7 @@ IC.renderGallery = function() {
                 }
                 IC.renderGallery();
                 IC.updateBatchCount();
+                if (IC.state.viewMode === 'grid') IC.renderGridView();
             } else {
                 selectImage(imgId);
             }
