@@ -177,7 +177,9 @@
             <div class="panel-content active" id="panelAnnotations">
                 <div class="panel-section">
                     <h4>Notas generales</h4>
-                    <textarea class="general-notes" id="generalNotes" placeholder="Notas generales sobre esta imagen..."></textarea>
+                    <div class="general-note-display empty" id="generalNotesDisplay">Clic para agregar notas...</div>
+                    <textarea class="general-notes hidden" id="generalNotes" placeholder="Notas generales sobre esta imagen..."></textarea>
+                    <div class="note-edit-hint" id="generalNotesHint">Enter para guardar · Shift+Enter para salto de línea</div>
                 </div>
                 <div class="panel-section">
                     <h4>Anotaciones <span class="annotation-count" id="annotationCount">0</span></h4>
