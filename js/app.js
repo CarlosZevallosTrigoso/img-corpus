@@ -499,40 +499,145 @@ function initCategoryUI() {
 }
 
 // ========== BATCH MODE ==========
-function initBatch() {
-    document.getElementById('btnBatchMode').addEventListener('click',function(){
-        IC.state.batchMode=!IC.state.batchMode; IC.state.batchSelected.clear();
-        var sb=document.getElementById('sidebar'),bar=document.getElementById('batchBar'),btn=document.getElementById('btnBatchMode');
-        if(IC.state.batchMode){sb.classList.add('batch-mode');bar.classList.remove('hidden');btn.classList.add('active')}
-        else{sb.classList.remove('batch-mode');bar.classList.add('hidden');btn.classList.remove('active')}
-        IC.renderGallery(); document.getElementById('batchCount').textContent=IC.state.batchSelected.size;
+function initSelection() {
+    // Show/hide selection bar based on selection count
+    IC.updateSelBar = function() {
+        var bar = document.getElementById('selBar');
+        var count = IC.state.batchSelected.size;
+        document.getElementById('selCount').textContent = count;
+        if (count > 0) bar.classList.remove('hidden');
+        else bar.classList.add('hidden');
+    };
+
+    // Toggle selection for an image
+    IC.toggleSelect = function(imgId) {
+        if (IC.state.batchSelected.has(imgId)) IC.state.batchSelected.delete(imgId);
+        else IC.state.batchSelected.add(imgId);
+        IC.updateSelBar();
+        IC.renderGallery();
+        if (IC.state.viewMode === 'grid' && IC.renderGridView) IC.renderGridView();
+    };
+
+    // Select all visible
+    document.getElementById('btnSelAll').addEventListener('click', function() {
+        IC.getVisibleImages().forEach(function(i) { IC.state.batchSelected.add(i.id); });
+        IC.updateSelBar(); IC.renderGallery();
     });
-    document.getElementById('btnBatchAll').addEventListener('click',function(){
-        IC.state.batchSelected=new Set(IC.state.images.map(function(i){return i.id}));
-        IC.renderGallery(); document.getElementById('batchCount').textContent=IC.state.batchSelected.size;
+
+    // Deselect all
+    document.getElementById('btnSelNone').addEventListener('click', function() {
+        IC.state.batchSelected.clear();
+        IC.updateSelBar(); IC.renderGallery();
     });
-    document.getElementById('btnBatchNone').addEventListener('click',function(){
-        IC.state.batchSelected.clear(); IC.renderGallery(); document.getElementById('batchCount').textContent=0;
+
+    // Tag selection
+    document.getElementById('btnSelTag').addEventListener('click', function() {
+        if (!IC.state.batchSelected.size) return;
+        document.getElementById('batchTagInput').value = '';
+        IC.openModal('modalBatchTag');
     });
-    document.getElementById('btnBatchTag').addEventListener('click',function(){
-        if(!IC.state.batchSelected.size) return;
-        document.getElementById('batchTagInput').value=''; IC.openModal('modalBatchTag');
-    });
-    document.getElementById('btnBatchTagApply').addEventListener('click',function(){
-        var tags=document.getElementById('batchTagInput').value.split(',').map(function(t){return t.trim().toLowerCase()}).filter(Boolean);
-        if(!tags.length) return;
+    document.getElementById('btnBatchTagApply').addEventListener('click', function() {
+        var tags = document.getElementById('batchTagInput').value.split(',').map(function(t) { return t.trim().toLowerCase(); }).filter(Boolean);
+        if (!tags.length) return;
         IC.pushUndo();
-        IC.state.images.forEach(function(img){if(IC.state.batchSelected.has(img.id)) tags.forEach(function(t){if(img.tags.indexOf(t)<0) img.tags.push(t)})});
+        IC.state.images.forEach(function(img) {
+            if (IC.state.batchSelected.has(img.id))
+                tags.forEach(function(t) { if (img.tags.indexOf(t) < 0) img.tags.push(t); });
+        });
         IC.closeModal('modalBatchTag'); IC.renderCorpusTags();
     });
-    document.getElementById('btnBatchDelete').addEventListener('click',function(){
-        if(!IC.state.batchSelected.size||!confirm('¿Eliminar '+IC.state.batchSelected.size+' imágenes?')) return;
+
+    // Delete selection
+    document.getElementById('btnSelDelete').addEventListener('click', function() {
+        if (!IC.state.batchSelected.size || !confirm('¿Eliminar ' + IC.state.batchSelected.size + ' imágenes?')) return;
         IC.pushUndo();
-        IC.state.images=IC.state.images.filter(function(i){return!IC.state.batchSelected.has(i.id)});
-        if(IC.state.batchSelected.has(IC.state.currentImageId)) IC.state.currentImageId=IC.state.images.length?IC.state.images[0].id:null;
-        IC.state.batchSelected.clear(); IC.refreshAll(); if(!IC.state.currentImageId) IC.showCanvasEmpty(true);
-        document.getElementById('batchCount').textContent=0;
+        IC.state.images = IC.state.images.filter(function(i) { return !IC.state.batchSelected.has(i.id); });
+        if (IC.state.batchSelected.has(IC.state.currentImageId))
+            IC.state.currentImageId = IC.state.images.length ? IC.state.images[0].id : null;
+        IC.state.batchSelected.clear();
+        IC.updateSelBar(); IC.refreshAll();
+        if (!IC.state.currentImageId) IC.showCanvasEmpty(true);
     });
+
+    // ===== Assign to collection =====
+    document.getElementById('btnSelToCollection').addEventListener('click', function() {
+        if (!IC.state.batchSelected.size) return;
+        openAssignCollModal();
+    });
+
+    // Create new collection with selection
+    document.getElementById('btnSelNewCollection').addEventListener('click', function() {
+        if (!IC.state.batchSelected.size) return;
+        var name = prompt('Nombre de la nueva colección:');
+        if (!name || !name.trim()) return;
+        IC.pushUndo();
+        var coll = { id: IC.uid(), name: name.trim(), parentId: null, notes: '', imageOrder: [] };
+        IC.state.collections.push(coll);
+        // Assign selected images
+        IC.state.images.forEach(function(img) {
+            if (IC.state.batchSelected.has(img.id)) {
+                if (!img.collectionIds) img.collectionIds = [];
+                if (img.collectionIds.indexOf(coll.id) < 0) img.collectionIds.push(coll.id);
+            }
+        });
+        IC.log('Colección "' + name.trim() + '" creada con ' + IC.state.batchSelected.size + ' imágenes');
+        IC.state.batchSelected.clear();
+        IC.updateSelBar(); IC.renderGallery();
+        if (IC.renderCollectionsTree) IC.renderCollectionsTree();
+    });
+
+    // Assign collection modal: "create new" button inside modal
+    document.getElementById('btnAssignCollNew').addEventListener('click', function() {
+        IC.closeModal('modalAssignColl');
+        var name = prompt('Nombre de la nueva colección:');
+        if (!name || !name.trim()) return;
+        IC.pushUndo();
+        var coll = { id: IC.uid(), name: name.trim(), parentId: null, notes: '', imageOrder: [] };
+        IC.state.collections.push(coll);
+        assignSelectedToCollection(coll.id, name.trim());
+    });
+}
+
+function openAssignCollModal() {
+    var list = document.getElementById('assignCollList');
+    if (!IC.state.collections.length) {
+        list.innerHTML = '<p style="color:var(--t3);font-size:11px;padding:8px">Sin colecciones. Crea una nueva.</p>';
+    } else {
+        list.innerHTML = IC.state.collections.map(function(c) {
+            var count = IC.state.images.filter(function(i) { return (i.collectionIds || []).indexOf(c.id) >= 0; }).length;
+            return '<div class="assign-coll-item" data-coll="' + c.id + '">' +
+                '<span class="material-symbols-outlined">folder</span>' +
+                '<span class="acl-name">' + IC.esc(c.name) + '</span>' +
+                '<span class="acl-count">' + count + '</span>' +
+            '</div>';
+        }).join('');
+
+        list.querySelectorAll('.assign-coll-item').forEach(function(el) {
+            el.addEventListener('click', function() {
+                IC.closeModal('modalAssignColl');
+                var coll = IC.state.collections.find(function(c) { return c.id === el.dataset.coll; });
+                assignSelectedToCollection(el.dataset.coll, coll ? coll.name : '');
+            });
+        });
+    }
+    IC.openModal('modalAssignColl');
+}
+
+function assignSelectedToCollection(collId, collName) {
+    IC.pushUndo();
+    var added = 0;
+    IC.state.images.forEach(function(img) {
+        if (IC.state.batchSelected.has(img.id)) {
+            if (!img.collectionIds) img.collectionIds = [];
+            if (img.collectionIds.indexOf(collId) < 0) { img.collectionIds.push(collId); added++; }
+        }
+    });
+    if (added > 0) {
+        IC.log(added + ' imagen(es) añadida(s) a "' + collName + '"');
+    }
+    IC.state.batchSelected.clear();
+    IC.updateSelBar(); IC.renderGallery();
+    if (IC.renderCollectionsTree) IC.renderCollectionsTree();
 }
 
 // ========== CUSTOM META FIELDS ==========
@@ -586,7 +691,7 @@ function initModals() {
 // ========== SCOPED IMAGES ==========
 IC.getTargetImages = function() {
     var base = IC.getVisibleImages();
-    if (IC.state.batchMode && IC.state.batchSelected.size > 0)
+    if (IC.state.batchSelected.size > 0)
         return base.filter(function(i){return IC.state.batchSelected.has(i.id)});
     return base;
 };
@@ -598,7 +703,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTabs('.rpanel-tab','.rpanel-content','rp');
     initHeader();
     initCategoryUI();
-    initBatch();
+    initSelection();
     initToolbar();
     initKeyboard();
     initCustomMeta();
@@ -607,13 +712,13 @@ document.addEventListener('DOMContentLoaded', function() {
     IC.updateCategorySelects();
 
     setTimeout(function() {
-        if(IC.initCanvas) IC.initCanvas();
-        if(IC.initCorpus) IC.initCorpus();
-        if(IC.initCollections) IC.initCollections();
-        if(IC.initSearch) IC.initSearch();
-        if(IC.initDiary) IC.initDiary();
-        if(IC.initGraph) IC.initGraph();
-        if(IC.initExport) IC.initExport();
+        try { if(IC.initCorpus) IC.initCorpus(); } catch(e) { console.error('initCorpus:', e); }
+        try { if(IC.initCollections) IC.initCollections(); } catch(e) { console.error('initCollections:', e); }
+        try { if(IC.initCanvas) IC.initCanvas(); } catch(e) { console.error('initCanvas:', e); }
+        try { if(IC.initSearch) IC.initSearch(); } catch(e) { console.error('initSearch:', e); }
+        try { if(IC.initDiary) IC.initDiary(); } catch(e) { console.error('initDiary:', e); }
+        try { if(IC.initGraph) IC.initGraph(); } catch(e) { console.error('initGraph:', e); }
+        try { if(IC.initExport) IC.initExport(); } catch(e) { console.error('initExport:', e); }
         IC.showCanvasEmpty(true);
     },100);
 });

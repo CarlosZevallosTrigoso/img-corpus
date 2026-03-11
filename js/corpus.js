@@ -74,17 +74,19 @@ function loadFiles(files) {
 // ========== FILE INPUT ==========
 function initFileInput() {
     var fileInput = document.getElementById('fileInput');
+    if (!fileInput) { console.error('fileInput element not found'); return; }
     fileInput.addEventListener('change', function(e) {
         loadFiles(e.target.files);
         e.target.value = '';
     });
 
     var btn = document.getElementById('btnAddImages');
-    if (btn) {
-        btn.addEventListener('click', function() {
-            fileInput.click();
-        });
-    }
+    if (!btn) { console.error('btnAddImages element not found'); return; }
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        fileInput.click();
+    });
 }
 
 // ========== DRAG-DROP FILES ==========
@@ -139,7 +141,7 @@ IC.renderGallery = function() {
     g.innerHTML = visible.map(function(img, idx) {
         var cl = ['gallery-item'];
         if (img.id === IC.state.currentImageId) cl.push('active');
-        if (IC.state.batchSelected.has(img.id)) cl.push('batch-selected');
+        if (IC.state.batchSelected.has(img.id)) cl.push('selected');
         var globalIdx = IC.state.images.indexOf(img) + 1;
 
         return '<div class="' + cl.join(' ') + '" data-id="' + img.id + '" draggable="true">' +
@@ -155,20 +157,22 @@ IC.renderGallery = function() {
         el.addEventListener('click', function(e) {
             if (e.target.classList.contains('item-remove')) return;
             var id = el.dataset.id;
-            if (IC.state.batchMode) {
-                if (IC.state.batchSelected.has(id)) IC.state.batchSelected.delete(id);
-                else IC.state.batchSelected.add(id);
-                IC.renderGallery();
-                document.getElementById('batchCount').textContent = IC.state.batchSelected.size;
-                if (IC.state.viewMode === 'grid' && IC.renderGridView) IC.renderGridView();
+
+            if (e.ctrlKey || e.metaKey) {
+                // Cmd/Ctrl+click: toggle selection
+                IC.toggleSelect(id);
             } else {
+                // Normal click: open image (and clear selection)
+                if (IC.state.batchSelected.size > 0) {
+                    IC.state.batchSelected.clear();
+                    IC.updateSelBar();
+                }
                 selectImage(id);
             }
         });
 
         // ===== DRAG REORDER =====
         el.addEventListener('dragstart', function(e) {
-            if (IC.state.batchMode) { e.preventDefault(); return; }
             dragSrcId = el.dataset.id;
             el.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
@@ -300,15 +304,16 @@ IC.renderGridView = function() {
     }).join('');
 
     c.querySelectorAll('.grid-item').forEach(function(el) {
-        // Single click: select/deselect for batch
+        // Single click: select/deselect
         el.addEventListener('click', function(e) {
             var id = el.dataset.id;
+            if (e.detail > 1) return; // ignore dblclick
             if (IC.state.batchSelected.has(id)) {
                 IC.state.batchSelected.delete(id);
             } else {
                 IC.state.batchSelected.add(id);
             }
-            document.getElementById('batchCount').textContent = IC.state.batchSelected.size;
+            if (IC.updateSelBar) IC.updateSelBar();
             IC.renderGridView();
         });
 

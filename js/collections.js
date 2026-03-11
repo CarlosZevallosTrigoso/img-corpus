@@ -63,7 +63,7 @@ IC.setActiveCollection = function(collId) {
 
     // Re-render everything that depends on visible images
     IC.renderGallery();
-    if (IC.state.batchMode) document.getElementById('batchCount').textContent = '0';
+    if (IC.updateSelBar) IC.updateSelBar();
 
     var visible = IC.getVisibleImages();
 
@@ -166,7 +166,7 @@ IC.renderCollectionsTree = function() {
             var collName = (IC.state.collections.find(function(c) { return c.id === collId; }) || {}).name || '';
             var targets;
 
-            if (IC.state.batchMode && IC.state.batchSelected.size > 0) {
+            if (IC.state.batchSelected.size > 0) {
                 targets = IC.state.images.filter(function(i) { return IC.state.batchSelected.has(i.id); });
             } else if (curImg) {
                 targets = [curImg];

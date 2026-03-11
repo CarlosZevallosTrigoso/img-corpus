@@ -50,17 +50,17 @@ IC.openReportModal=function(){
     if(IC.populateReportCollections)IC.populateReportCollections();
     // Update scope info
     var scope=document.getElementById('reportScope');
-    var hasSel=IC.state.batchMode&&IC.state.batchSelected.size>0;
-    if(hasSel) scope.innerHTML='<strong>'+IC.state.batchSelected.size+'</strong> imágenes seleccionadas en batch.';
-    else scope.innerHTML='Se incluirán todas las <strong>'+IC.state.images.length+'</strong> imágenes (o elige una colección abajo).';
+    var hasSel=IC.state.batchSelected.size>0;
+    if(hasSel) scope.innerHTML='<strong>'+IC.state.batchSelected.size+'</strong> imágenes seleccionadas.';
+    else scope.innerHTML='Se incluirán todas las <strong>'+IC.getVisibleImages().length+'</strong> imágenes'+(IC.state.activeCollectionId?' de esta colección':'')+' (o elige una colección abajo).';
     IC.openModal('modalReport');
 };
 
 function getScopedImages(){
     var collId=document.getElementById('reportCollection').value;
     if(collId&&IC.getCollectionImages) return IC.getCollectionImages(collId);
-    if(IC.state.batchMode&&IC.state.batchSelected.size>0) return IC.state.images.filter(function(i){return IC.state.batchSelected.has(i.id)});
-    return IC.state.images.slice();
+    if(IC.state.batchSelected.size>0) return IC.state.images.filter(function(i){return IC.state.batchSelected.has(i.id)});
+    return IC.getVisibleImages();
 }
 
 // ========== HTML REPORT ==========
