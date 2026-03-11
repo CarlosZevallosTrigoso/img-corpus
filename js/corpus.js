@@ -253,6 +253,7 @@ function selectImage(id) {
     IC.renderAnnotationsPanel(img);
     IC.renderMetadataPanel(img);
     IC.renderTagsPanel(img);
+    if (IC.renderCollectionsTree) IC.renderCollectionsTree();
 }
 IC.selectImage = selectImage;
 

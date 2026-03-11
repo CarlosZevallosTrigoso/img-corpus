@@ -33,20 +33,31 @@ function populateParentSelect(exclude){
 
 IC.renderCollectionsTree=function(){
     var container=document.getElementById('collectionsTree');
-    if(!IC.state.collections.length){container.innerHTML='<div class="coll-empty">Sin colecciones.</div>';return}
+    if(!IC.state.collections.length){container.innerHTML='<div class="coll-empty">Crea tu primera colección con el botón de arriba.</div>';return}
+
+    // Check if current image is in each collection
+    var curImg = IC.getCurrentImage();
+
     function buildTree(parentId){
         var children=IC.state.collections.filter(function(c){return(c.parentId||null)===(parentId||null)});
         if(!children.length)return'';
         return children.map(function(c){
             var imgCount=IC.state.images.filter(function(i){return(i.collectionIds||[]).indexOf(c.id)>=0}).length;
+            var curInColl = curImg && (curImg.collectionIds||[]).indexOf(c.id) >= 0;
             var sub=buildTree(c.id);
-            return'<div class="coll-node"><div class="coll-row" data-id="'+c.id+'">'+
-                '<span class="material-symbols-outlined">'+(sub?'folder_open':'folder')+'</span>'+
+            var assignTitle = IC.state.batchMode && IC.state.batchSelected.size > 0
+                ? 'Agregar ' + IC.state.batchSelected.size + ' seleccionadas'
+                : curImg ? 'Agregar imagen activa' : 'Selecciona una imagen primero';
+            var removeTitle = curInColl ? 'Quitar imagen activa de esta colección' : '';
+
+            return'<div class="coll-node"><div class="coll-row'+(curInColl?' coll-has-current':'')+'" data-id="'+c.id+'">'+
+                '<span class="material-symbols-outlined" style="font-size:15px">'+(sub?'folder_open':'folder')+'</span>'+
                 '<span class="coll-label">'+IC.esc(c.name)+'</span>'+
                 '<span class="coll-count">'+imgCount+'</span>'+
                 '<div class="coll-actions">'+
-                    '<button data-action="assign" data-id="'+c.id+'" title="Asignar imágenes seleccionadas">+</button>'+
-                    '<button data-action="delete" data-id="'+c.id+'" title="Eliminar">&times;</button>'+
+                    (curInColl?'<button data-action="unassign" data-id="'+c.id+'" title="'+removeTitle+'"><span class="material-symbols-outlined" style="font-size:14px">remove_circle_outline</span></button>':'')+
+                    '<button data-action="assign" data-id="'+c.id+'" title="'+assignTitle+'"><span class="material-symbols-outlined" style="font-size:14px">add_circle_outline</span></button>'+
+                    '<button data-action="delete" data-id="'+c.id+'" title="Eliminar colección"><span class="material-symbols-outlined" style="font-size:14px">delete_outline</span></button>'+
                 '</div>'+
             '</div>'+sub+'</div>';
         }).join('');
@@ -59,23 +70,52 @@ IC.renderCollectionsTree=function(){
             if(e.target.closest('.coll-actions'))return;
             container.querySelectorAll('.coll-row').forEach(function(r){r.classList.remove('active')});
             el.classList.add('active');
-            // Could filter gallery or switch to collection view
         });
     });
 
-    // Assign images
+    // Assign images (batch or current)
     container.querySelectorAll('[data-action="assign"]').forEach(function(btn){
         btn.addEventListener('click',function(e){
             e.stopPropagation();
             var collId=btn.dataset.id;
-            var targets=IC.getTargetImages();
-            if(!targets.length){alert('Selecciona imágenes primero (modo batch).');return}
+            var collName=(IC.state.collections.find(function(c){return c.id===collId})||{}).name||'';
+            var targets;
+
+            if(IC.state.batchMode && IC.state.batchSelected.size > 0) {
+                targets = IC.state.images.filter(function(i){return IC.state.batchSelected.has(i.id)});
+            } else if(curImg) {
+                targets = [curImg];
+            } else {
+                alert('Selecciona o abre una imagen primero.');
+                return;
+            }
+
             IC.pushUndo();
+            var added = 0;
             targets.forEach(function(img){
                 if(!img.collectionIds)img.collectionIds=[];
-                if(img.collectionIds.indexOf(collId)<0)img.collectionIds.push(collId);
+                if(img.collectionIds.indexOf(collId)<0){img.collectionIds.push(collId);added++}
             });
-            IC.log(targets.length+' imágenes asignadas a colección "'+IC.state.collections.find(function(c){return c.id===collId}).name+'"');
+
+            if(added > 0){
+                IC.log(added+' imagen(es) asignada(s) a colección "'+collName+'"');
+                IC.renderCollectionsTree();
+            } else {
+                alert('Las imágenes ya están en esta colección.');
+            }
+        });
+    });
+
+    // Unassign current image
+    container.querySelectorAll('[data-action="unassign"]').forEach(function(btn){
+        btn.addEventListener('click',function(e){
+            e.stopPropagation();
+            if(!curImg) return;
+            var collId=btn.dataset.id;
+            var collName=(IC.state.collections.find(function(c){return c.id===collId})||{}).name||'';
+            IC.pushUndo();
+            curImg.collectionIds=(curImg.collectionIds||[]).filter(function(x){return x!==collId});
+            IC.log('Imagen "'+curImg.name+'" quitada de colección "'+collName+'"');
             IC.renderCollectionsTree();
         });
     });
