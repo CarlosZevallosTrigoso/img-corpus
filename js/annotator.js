@@ -1,16 +1,26 @@
 /* ========================================
-   IMG-CORPUS — Annotator
+   IMG-CORPUS — Annotator (v2 rewrite)
    Fabric.js canvas, drawing tools, annotations
+   
+   Architecture:
+   - Badges are NOT serialized. Recreated from annotation data.
+   - Each annotation stores badges[] with {uid, x, y}.
+   - saveCurrentCanvasState only saves non-badge objects.
+   - Shapes link to annotations via annotationId.
    ======================================== */
 
 (function() {
 
 let canvas = null;
-let bgImage = null;
 let currentZoom = 1;
 let isDrawing = false;
 let drawStart = null;
 let tempShape = null;
+
+// Polygon state
+let polyPoints = [];
+let polyLines = [];
+let polyDots = [];
 
 // ========== CANVAS INIT ==========
 IC.initCanvas = function() {
@@ -24,18 +34,17 @@ IC.initCanvas = function() {
         selection: true,
         preserveObjectStacking: true,
     });
-
     IC.canvas = canvas;
 
-    // Resize handler
-    window.addEventListener('resize', () => {
-        const r = container.getBoundingClientRect();
-        canvas.setWidth(r.width);
-        canvas.setHeight(r.height - 4);
-        canvas.renderAll();
+    window.addEventListener('resize', function() {
+        var r = container.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+            canvas.setWidth(r.width);
+            canvas.setHeight(r.height - 4);
+            canvas.renderAll();
+        }
     });
 
-    // Canvas events
     canvas.on('mouse:down', onMouseDown);
     canvas.on('mouse:move', onMouseMove);
     canvas.on('mouse:up', onMouseUp);
@@ -43,17 +52,24 @@ IC.initCanvas = function() {
     canvas.on('selection:updated', onSelectionChanged);
     canvas.on('selection:cleared', onSelectionCleared);
 
-    // Freedraw path completion
     canvas.on('path:created', function(opt) {
         if (IC.state.activeTool !== 'freedraw') return;
-        const path = opt.path;
-        finalizeShape(path);
+        finalizeShape(opt.path);
     });
 
-    // Mouse wheel zoom
+    // When shape moves, reposition its badge
+    canvas.on('object:modified', function(opt) {
+        var obj = opt.target;
+        if (obj && obj.annotationId && !obj._isBadge) {
+            repositionBadge(obj);
+            IC.saveCurrentCanvasState();
+        }
+    });
+
+    // Wheel zoom
     canvas.on('mouse:wheel', function(opt) {
-        const delta = opt.e.deltaY;
-        let zoom = canvas.getZoom();
+        var delta = opt.e.deltaY;
+        var zoom = canvas.getZoom();
         zoom *= 0.999 ** delta;
         zoom = Math.min(Math.max(0.1, zoom), 10);
         canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
@@ -63,9 +79,8 @@ IC.initCanvas = function() {
         opt.e.stopPropagation();
     });
 
-    // Panning with Alt+drag or middle mouse
-    let isPanning = false;
-    let panStart = null;
+    // Pan with Alt+drag
+    var isPanning = false, panStart = null;
     canvas.on('mouse:down', function(opt) {
         if (opt.e.altKey || opt.e.button === 1) {
             isPanning = true;
@@ -76,464 +91,446 @@ IC.initCanvas = function() {
     });
     canvas.on('mouse:move', function(opt) {
         if (!isPanning) return;
-        const vpt = canvas.viewportTransform;
+        var vpt = canvas.viewportTransform;
         vpt[4] += opt.e.clientX - panStart.x;
         vpt[5] += opt.e.clientY - panStart.y;
         panStart = { x: opt.e.clientX, y: opt.e.clientY };
         canvas.requestRenderAll();
     });
     canvas.on('mouse:up', function() {
-        if (isPanning) {
-            isPanning = false;
-            IC.applyTool(IC.state.activeTool);
-        }
+        if (isPanning) { isPanning = false; IC.applyTool(IC.state.activeTool); }
     });
 };
 
 // ========== LOAD IMAGE ==========
+// NOTE: caller must save canvas state BEFORE changing currentImageId
 IC.loadImageToCanvas = function(imgData) {
     if (!canvas) return;
 
-    // Save current canvas state before switching
-    IC.saveCurrentCanvasState();
-
     canvas.clear();
     canvas.setBackgroundColor('#111118', canvas.renderAll.bind(canvas));
+    cancelPolygon();
 
     fabric.Image.fromURL(imgData.dataUrl, function(img) {
-        bgImage = img;
-
-        const containerEl = document.getElementById('canvasContainer');
-        const cw = containerEl.clientWidth;
-        const ch = containerEl.clientHeight;
-
-        const scale = Math.min(
-            (cw * 0.9) / img.width,
-            (ch * 0.9) / img.height,
-            1
-        );
+        var el = document.getElementById('canvasContainer');
+        var cw = el.clientWidth, ch = el.clientHeight;
+        var scale = Math.min((cw * 0.9) / img.width, (ch * 0.9) / img.height, 1);
 
         img.set({
-            left: cw / 2,
-            top: ch / 2,
-            originX: 'center',
-            originY: 'center',
-            scaleX: scale,
-            scaleY: scale,
-            selectable: false,
-            evented: false,
-            hoverCursor: 'default',
+            left: cw / 2, top: ch / 2,
+            originX: 'center', originY: 'center',
+            scaleX: scale, scaleY: scale,
+            selectable: false, evented: false, hoverCursor: 'default',
         });
 
-        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-        canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-        currentZoom = 1;
-        updateZoomDisplay();
+        canvas.setBackgroundImage(img, function() {
+            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+            currentZoom = 1;
+            updateZoomDisplay();
 
-        // Restore annotations
-        if (imgData.canvasObjects && imgData.canvasObjects.length > 0) {
-            fabric.util.enlivenObjects(imgData.canvasObjects, function(objects) {
-                objects.forEach(obj => {
-                    canvas.add(obj);
+            if (imgData.canvasObjects && imgData.canvasObjects.length > 0) {
+                fabric.util.enlivenObjects(imgData.canvasObjects, function(objects) {
+                    objects.forEach(function(o) { canvas.add(o); });
+                    recreateBadges(imgData);
+                    canvas.renderAll();
                 });
+            } else {
+                recreateBadges(imgData);
                 canvas.renderAll();
-            });
-        }
-
-        IC.showCanvasEmpty(false);
+            }
+            IC.showCanvasEmpty(false);
+        });
     }, { crossOrigin: 'anonymous' });
 };
 
 // ========== SAVE CANVAS STATE ==========
 IC.saveCurrentCanvasState = function() {
     if (!canvas || !IC.state.currentImageId) return;
-    const img = IC.getCurrentImage();
+    var img = IC.getCurrentImage();
     if (!img) return;
 
-    const objects = canvas.getObjects().map(obj => obj.toObject([
-        'annotationId', 'annotationNumber', 'categoryId', 'isAnnotation', 'isBadge'
-    ]));
-    img.canvasObjects = objects;
+    // Save only non-badge objects
+    img.canvasObjects = canvas.getObjects()
+        .filter(function(o) { return !o._isBadge && !o._isPolyTemp; })
+        .map(function(o) {
+            return o.toObject(['annotationId', 'annotationNumber', 'categoryId', 'isAnnotation']);
+        });
+
+    // Update badge positions from canvas
+    canvas.getObjects().filter(function(o) { return o._isBadge; }).forEach(function(badge) {
+        var ann = (img.annotations || []).find(function(a) { return a.id === badge.annotationId; });
+        if (ann && ann.badges) {
+            var b = ann.badges.find(function(bb) { return bb.uid === badge._badgeUid; });
+            if (b) { b.x = badge.left; b.y = badge.top; }
+        }
+    });
 };
+
+// ========== RECREATE BADGES ==========
+function recreateBadges(imgData) {
+    if (!imgData.annotations) return;
+    imgData.annotations.forEach(function(ann) {
+        var color = IC.getCategoryColor(ann.categoryId);
+        (ann.badges || []).forEach(function(b) {
+            canvas.add(makeBadge(b.x, b.y, ann.number, color, ann.id, b.uid));
+        });
+    });
+}
 
 // ========== TOOL APPLICATION ==========
 IC.applyTool = function(tool) {
     if (!canvas) return;
-
     canvas.isDrawingMode = false;
     canvas.selection = true;
     canvas.defaultCursor = 'default';
     canvas.hoverCursor = 'move';
-    canvas.forEachObject(obj => {
-        if (!obj.isBadge) obj.selectable = true;
-    });
+    canvas.forEachObject(function(o) { if (!o._isBadge) o.selectable = true; });
 
-    // Show/hide marker number selector
-    const markerSelect = document.getElementById('markerNumberSelect');
-    if (tool === 'marker') {
-        markerSelect.classList.remove('hidden');
-        IC.updateMarkerSelect();
-    } else {
-        markerSelect.classList.add('hidden');
-    }
+    var ms = document.getElementById('markerNumberSelect');
+    ms.classList.toggle('hidden', tool !== 'marker');
+    if (tool === 'marker') IC.updateMarkerSelect();
+
+    if (tool !== 'polygon' && polyPoints.length > 0) cancelPolygon();
 
     if (tool === 'freedraw') {
-        if (!IC.hasCategories()) {
-            IC.openModal('modalAddCategory');
-            IC.setTool('select');
-            return;
-        }
+        if (!IC.hasCategories()) { IC.openModal('modalAddCategory'); IC.setTool('select'); return; }
         canvas.isDrawingMode = true;
         canvas.freeDrawingBrush.color = IC.getCategoryColor(IC.state.activeCategory);
         canvas.freeDrawingBrush.width = 3;
         canvas.selection = false;
-    } else if (tool === 'select') {
-        canvas.defaultCursor = 'default';
-    } else {
+    } else if (tool !== 'select') {
         canvas.defaultCursor = 'crosshair';
         canvas.selection = false;
-        canvas.forEachObject(obj => { obj.selectable = false; });
+        canvas.forEachObject(function(o) { o.selectable = false; });
     }
 };
 
-// ========== DRAWING EVENTS ==========
-function getPointer(e) {
-    return canvas.getPointer(e.e);
-}
+// ========== MOUSE EVENTS ==========
+function ptr(e) { return canvas.getPointer(e.e); }
 
 function onMouseDown(opt) {
-    const tool = IC.state.activeTool;
+    var tool = IC.state.activeTool;
     if (tool === 'select' || tool === 'freedraw') return;
+    if (!IC.hasCategories()) { IC.openModal('modalAddCategory'); return; }
 
-    if (!IC.hasCategories()) {
-        IC.openModal('modalAddCategory');
-        return;
-    }
+    var p = ptr(opt);
+
+    if (tool === 'polygon') { handlePolygonClick(p); return; }
+    if (tool === 'marker')  { createMarkerAtPoint(p.x, p.y); return; }
+    if (tool === 'text')    { createTextAtPoint(p.x, p.y); return; }
 
     isDrawing = true;
-    drawStart = getPointer(opt);
-    const color = IC.getCategoryColor(IC.state.activeCategory);
+    drawStart = p;
+    var color = IC.getCategoryColor(IC.state.activeCategory);
 
     if (tool === 'rect') {
         tempShape = new fabric.Rect({
-            left: drawStart.x,
-            top: drawStart.y,
-            width: 0,
-            height: 0,
-            fill: colorAlpha(color, 0.12),
-            stroke: color,
-            strokeWidth: 2,
-            strokeDashArray: [6, 3],
-            selectable: false,
+            left: p.x, top: p.y, width: 0, height: 0,
+            fill: colorAlpha(color, 0.12), stroke: color,
+            strokeWidth: 2, strokeDashArray: [6, 3], selectable: false,
         });
         canvas.add(tempShape);
     } else if (tool === 'ellipse') {
         tempShape = new fabric.Ellipse({
-            left: drawStart.x,
-            top: drawStart.y,
-            rx: 0,
-            ry: 0,
-            fill: colorAlpha(color, 0.12),
-            stroke: color,
-            strokeWidth: 2,
-            strokeDashArray: [6, 3],
-            selectable: false,
+            left: p.x, top: p.y, rx: 0, ry: 0,
+            fill: colorAlpha(color, 0.12), stroke: color,
+            strokeWidth: 2, strokeDashArray: [6, 3], selectable: false,
         });
         canvas.add(tempShape);
     } else if (tool === 'arrow') {
-        tempShape = new fabric.Line([drawStart.x, drawStart.y, drawStart.x, drawStart.y], {
-            stroke: color,
-            strokeWidth: 2.5,
-            selectable: false,
+        tempShape = new fabric.Line([p.x, p.y, p.x, p.y], {
+            stroke: color, strokeWidth: 2.5, selectable: false,
         });
         canvas.add(tempShape);
-    } else if (tool === 'marker') {
-        // Place marker immediately
-        isDrawing = false;
-        createAnnotationAtPoint(drawStart.x, drawStart.y);
-        return;
     }
 }
 
 function onMouseMove(opt) {
     if (!isDrawing || !tempShape) return;
-    const pointer = getPointer(opt);
-    const tool = IC.state.activeTool;
+    var p = ptr(opt), tool = IC.state.activeTool;
 
     if (tool === 'rect') {
-        const left = Math.min(drawStart.x, pointer.x);
-        const top = Math.min(drawStart.y, pointer.y);
         tempShape.set({
-            left: left,
-            top: top,
-            width: Math.abs(pointer.x - drawStart.x),
-            height: Math.abs(pointer.y - drawStart.y),
+            left: Math.min(drawStart.x, p.x), top: Math.min(drawStart.y, p.y),
+            width: Math.abs(p.x - drawStart.x), height: Math.abs(p.y - drawStart.y),
         });
     } else if (tool === 'ellipse') {
-        const rx = Math.abs(pointer.x - drawStart.x) / 2;
-        const ry = Math.abs(pointer.y - drawStart.y) / 2;
         tempShape.set({
-            left: Math.min(drawStart.x, pointer.x),
-            top: Math.min(drawStart.y, pointer.y),
-            rx: rx,
-            ry: ry,
+            left: Math.min(drawStart.x, p.x), top: Math.min(drawStart.y, p.y),
+            rx: Math.abs(p.x - drawStart.x) / 2, ry: Math.abs(p.y - drawStart.y) / 2,
         });
     } else if (tool === 'arrow') {
-        tempShape.set({ x2: pointer.x, y2: pointer.y });
+        tempShape.set({ x2: p.x, y2: p.y });
     }
-
     canvas.renderAll();
 }
 
 function onMouseUp(opt) {
-    if (!isDrawing) {
-        // Handle freedraw path completion
-        if (IC.state.activeTool === 'freedraw' && opt.target && opt.target.type === 'path') {
-            return; // handled by path:created
-        }
-        return;
-    }
-
+    if (!isDrawing) return;
     isDrawing = false;
-    const tool = IC.state.activeTool;
-    const pointer = getPointer(opt);
+    var tool = IC.state.activeTool, p = ptr(opt);
 
     if (tool === 'rect' || tool === 'ellipse') {
-        const w = Math.abs(pointer.x - drawStart.x);
-        const h = Math.abs(pointer.y - drawStart.y);
-        if (w < 5 && h < 5) {
-            canvas.remove(tempShape);
-            tempShape = null;
-            return;
+        if (Math.abs(p.x - drawStart.x) < 5 && Math.abs(p.y - drawStart.y) < 5) {
+            canvas.remove(tempShape); tempShape = null; return;
         }
         finalizeShape(tempShape);
     } else if (tool === 'arrow') {
-        const dx = pointer.x - drawStart.x;
-        const dy = pointer.y - drawStart.y;
-        if (Math.sqrt(dx*dx + dy*dy) < 10) {
-            canvas.remove(tempShape);
-            tempShape = null;
-            return;
+        var dx = p.x - drawStart.x, dy = p.y - drawStart.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 10) {
+            canvas.remove(tempShape); tempShape = null; return;
         }
-        // Replace line with arrow (line + triangle head)
         canvas.remove(tempShape);
-        const arrowGroup = createArrow(drawStart.x, drawStart.y, pointer.x, pointer.y);
-        finalizeShape(arrowGroup);
+        finalizeShape(makeArrowPath(drawStart.x, drawStart.y, p.x, p.y));
     }
-
     tempShape = null;
 }
 
+// ========== ARROW PATH ==========
+function makeArrowPath(x1, y1, x2, y2) {
+    var color = IC.getCategoryColor(IC.state.activeCategory);
+    var angle = Math.atan2(y2 - y1, x2 - x1);
+    var hl = 16, ha = Math.PI / 7;
+    var hx1 = x2 - hl * Math.cos(angle - ha), hy1 = y2 - hl * Math.sin(angle - ha);
+    var hx2 = x2 - hl * Math.cos(angle + ha), hy2 = y2 - hl * Math.sin(angle + ha);
 
-
-// ========== CREATE SHAPES ==========
-function createArrow(x1, y1, x2, y2) {
-    const color = IC.getCategoryColor(IC.state.activeCategory);
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    const headLen = 16;
-    const headAngle = Math.PI / 7;
-
-    // Arrowhead points
-    const hx1 = x2 - headLen * Math.cos(angle - headAngle);
-    const hy1 = y2 - headLen * Math.sin(angle - headAngle);
-    const hx2 = x2 - headLen * Math.cos(angle + headAngle);
-    const hy2 = y2 - headLen * Math.sin(angle + headAngle);
-
-    const pathStr = [
-        'M', x1, y1,
-        'L', x2, y2,
-        'M', hx1, hy1,
-        'L', x2, y2,
-        'L', hx2, hy2,
-    ].join(' ');
-
-    const arrow = new fabric.Path(pathStr, {
-        fill: '',
-        stroke: color,
-        strokeWidth: 2.5,
-        strokeLineCap: 'round',
-        strokeLineJoin: 'round',
-        selectable: true,
-    });
-
-    return arrow;
+    return new fabric.Path(
+        'M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2 +
+        ' M ' + hx1 + ' ' + hy1 + ' L ' + x2 + ' ' + y2 + ' L ' + hx2 + ' ' + hy2,
+        { fill: '', stroke: color, strokeWidth: 2.5,
+          strokeLineCap: 'round', strokeLineJoin: 'round', selectable: true }
+    );
 }
 
-function createAnnotationAtPoint(x, y) {
-    const img = IC.getCurrentImage();
+// ========== POLYGON ==========
+function handlePolygonClick(p) {
+    var color = IC.getCategoryColor(IC.state.activeCategory);
+
+    if (polyPoints.length >= 3) {
+        var dx = p.x - polyPoints[0].x, dy = p.y - polyPoints[0].y;
+        if (Math.sqrt(dx * dx + dy * dy) < 15) { closePolygon(); return; }
+    }
+
+    polyPoints.push({ x: p.x, y: p.y });
+
+    var dot = new fabric.Circle({
+        left: p.x, top: p.y, originX: 'center', originY: 'center',
+        radius: 4, fill: color, selectable: false, evented: false, _isPolyTemp: true,
+    });
+    canvas.add(dot); polyDots.push(dot);
+
+    if (polyPoints.length > 1) {
+        var prev = polyPoints[polyPoints.length - 2];
+        var line = new fabric.Line([prev.x, prev.y, p.x, p.y], {
+            stroke: color, strokeWidth: 2, strokeDashArray: [6, 3],
+            selectable: false, evented: false, _isPolyTemp: true,
+        });
+        canvas.add(line); polyLines.push(line);
+    }
+    canvas.renderAll();
+}
+
+function closePolygon() {
+    polyDots.forEach(function(d) { canvas.remove(d); });
+    polyLines.forEach(function(l) { canvas.remove(l); });
+
+    var color = IC.getCategoryColor(IC.state.activeCategory);
+    var poly = new fabric.Polygon(polyPoints.map(function(p) { return { x: p.x, y: p.y }; }), {
+        fill: colorAlpha(color, 0.12), stroke: color,
+        strokeWidth: 2, strokeDashArray: [6, 3], selectable: true,
+    });
+    canvas.add(poly);
+    finalizeShape(poly);
+    polyPoints = []; polyLines = []; polyDots = [];
+}
+
+function cancelPolygon() {
+    polyDots.forEach(function(d) { canvas.remove(d); });
+    polyLines.forEach(function(l) { canvas.remove(l); });
+    polyPoints = []; polyLines = []; polyDots = [];
+    if (canvas) canvas.renderAll();
+}
+
+// Close polygon on double-click
+document.addEventListener('dblclick', function() {
+    if (IC.state.activeTool === 'polygon' && polyPoints.length >= 3) closePolygon();
+});
+
+// ========== TEXT TOOL ==========
+function createTextAtPoint(x, y) {
+    var input = prompt('Texto (máx. 5 palabras):');
+    if (!input || !input.trim()) return;
+    var words = input.trim().split(/\s+/).slice(0, 5).join(' ');
+    var color = IC.getCategoryColor(IC.state.activeCategory);
+
+    var text = new fabric.IText(words, {
+        left: x, top: y,
+        fontFamily: 'IBM Plex Sans, sans-serif',
+        fontSize: 16, fontWeight: '600',
+        fill: color, stroke: '#000', strokeWidth: 0.3,
+        selectable: true, editable: false,
+    });
+    canvas.add(text);
+    finalizeShape(text);
+}
+
+// ========== MARKER ==========
+function createMarkerAtPoint(x, y) {
+    var img = IC.getCurrentImage();
     if (!img) return;
 
-    const markerSelect = document.getElementById('markerNumberSelect');
-    const selectedValue = markerSelect.value;
-
+    var sel = document.getElementById('markerNumberSelect').value;
     IC.pushUndo();
+    var catId = IC.state.activeCategory, color = IC.getCategoryColor(catId);
 
-    const catId = IC.state.activeCategory;
-    const color = IC.getCategoryColor(catId);
+    if (sel === 'new') {
+        var annId = IC.uid();
+        var annNum = (img.annotations ? img.annotations.length : 0) + 1;
+        var bUid = IC.uid();
 
-    if (selectedValue === 'new') {
-        // Create new annotation + badge
-        const annId = IC.uid();
-        const annNum = (img.annotations ? img.annotations.length : 0) + 1;
-
-        const badge = createBadge(x, y, annNum, color);
-        badge.annotationId = annId;
-        badge.annotationNumber = annNum;
-        badge.categoryId = catId;
-        badge.isAnnotation = true;
-        badge.isBadge = true;
-        canvas.add(badge);
+        canvas.add(makeBadge(x, y, annNum, color, annId, bUid));
         canvas.renderAll();
 
         if (!img.annotations) img.annotations = [];
         img.annotations.push({
-            id: annId,
-            number: annNum,
-            categoryId: catId,
-            note: '',
-            type: 'marker',
+            id: annId, number: annNum, categoryId: catId,
+            note: '', type: 'marker',
+            badges: [{ uid: bUid, x: x, y: y }],
         });
-
         IC.saveCurrentCanvasState();
         IC.renderAnnotationsPanel(img);
         IC.updateMarkerSelect();
+        autoFocusNote(annId);
     } else {
-        // Place additional badge for existing annotation
-        const ann = img.annotations.find(a => a.id === selectedValue);
+        var ann = img.annotations.find(function(a) { return a.id === sel; });
         if (!ann) return;
-
-        const badge = createBadge(x, y, ann.number, IC.getCategoryColor(ann.categoryId));
-        badge.annotationId = ann.id;
-        badge.annotationNumber = ann.number;
-        badge.categoryId = ann.categoryId;
-        badge.isAnnotation = true;
-        badge.isBadge = true;
-        canvas.add(badge);
+        var bUid2 = IC.uid();
+        canvas.add(makeBadge(x, y, ann.number, IC.getCategoryColor(ann.categoryId), ann.id, bUid2));
         canvas.renderAll();
-
+        if (!ann.badges) ann.badges = [];
+        ann.badges.push({ uid: bUid2, x: x, y: y });
         IC.saveCurrentCanvasState();
+    }
+}
+
+// ========== FINALIZE SHAPE ==========
+function finalizeShape(shape) {
+    var img = IC.getCurrentImage();
+    if (!img) return;
+    IC.pushUndo();
+
+    var annId = IC.uid();
+    var annNum = (img.annotations ? img.annotations.length : 0) + 1;
+    var catId = IC.state.activeCategory;
+    var color = IC.getCategoryColor(catId);
+
+    shape.set({
+        annotationId: annId, annotationNumber: annNum,
+        categoryId: catId, isAnnotation: true, selectable: true,
+    });
+
+    var bound = shape.getBoundingRect();
+    var bx = bound.left + bound.width + 6, by = bound.top - 6;
+    var bUid = IC.uid();
+
+    canvas.add(makeBadge(bx, by, annNum, color, annId, bUid));
+    canvas.renderAll();
+
+    if (!img.annotations) img.annotations = [];
+    img.annotations.push({
+        id: annId, number: annNum, categoryId: catId,
+        note: '', type: IC.state.activeTool,
+        badges: [{ uid: bUid, x: bx, y: by }],
+    });
+
+    IC.saveCurrentCanvasState();
+    IC.renderAnnotationsPanel(img);
+    IC.updateMarkerSelect();
+    autoFocusNote(annId);
+}
+
+// ========== MAKE BADGE ==========
+function makeBadge(x, y, number, color, annId, uid) {
+    var circle = new fabric.Circle({
+        radius: 12, fill: color, originX: 'center', originY: 'center',
+    });
+    var text = new fabric.Text(String(number), {
+        fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fontWeight: '700',
+        fill: '#0d0d12', originX: 'center', originY: 'center',
+    });
+    return new fabric.Group([circle, text], {
+        left: x, top: y,
+        selectable: false, evented: false, hoverCursor: 'default',
+        _isBadge: true, _badgeUid: uid, annotationId: annId,
+    });
+}
+
+// ========== REPOSITION BADGE ==========
+function repositionBadge(shape) {
+    if (!shape.annotationId) return;
+    var bound = shape.getBoundingRect();
+    var bx = bound.left + bound.width + 6, by = bound.top - 6;
+
+    var badge = canvas.getObjects().find(function(o) {
+        return o._isBadge && o.annotationId === shape.annotationId;
+    });
+    if (badge) {
+        badge.set({ left: bx, top: by }); badge.setCoords();
+        var img = IC.getCurrentImage();
+        if (img) {
+            var ann = (img.annotations || []).find(function(a) { return a.id === shape.annotationId; });
+            if (ann && ann.badges) {
+                var b = ann.badges.find(function(bb) { return bb.uid === badge._badgeUid; });
+                if (b) { b.x = bx; b.y = by; }
+            }
+        }
     }
 }
 
 // ========== MARKER SELECT ==========
 IC.updateMarkerSelect = function() {
-    const img = IC.getCurrentImage();
-    const select = document.getElementById('markerNumberSelect');
-    if (!img || !select) return;
-
-    const prev = select.value;
-    let html = '<option value="new">+ Nuevo</option>';
+    var img = IC.getCurrentImage();
+    var sel = document.getElementById('markerNumberSelect');
+    if (!img || !sel) return;
+    var prev = sel.value;
+    var html = '<option value="new">+ Nuevo</option>';
     if (img.annotations && img.annotations.length > 0) {
-        html += img.annotations.map(ann => {
-            const cat = IC.getCategoryById(ann.categoryId);
-            const catName = cat ? cat.name : '';
-            const notePreview = ann.note ? (' — ' + ann.note.substring(0, 20)) : '';
-            return `<option value="${ann.id}">#${ann.number} ${catName}${notePreview}</option>`;
-        }).join('');
+        img.annotations.forEach(function(ann) {
+            var cat = IC.getCategoryById(ann.categoryId);
+            var cn = cat ? cat.name : '';
+            var sn = ann.note ? (' — ' + ann.note.substring(0, 20)) : '';
+            html += '<option value="' + ann.id + '">#' + ann.number + ' ' + cn + sn + '</option>';
+        });
     }
-    select.innerHTML = html;
-    // Restore previous selection if still valid
-    if (img.annotations && img.annotations.find(a => a.id === prev)) {
-        select.value = prev;
-    } else {
-        select.value = 'new';
-    }
+    sel.innerHTML = html;
+    if (img.annotations && img.annotations.find(function(a) { return a.id === prev; })) {
+        sel.value = prev;
+    } else { sel.value = 'new'; }
 };
 
-function finalizeShape(shape) {
-    const img = IC.getCurrentImage();
-    if (!img) return;
-
-    IC.pushUndo();
-
-    const annId = IC.uid();
-    const annNum = (img.annotations ? img.annotations.length : 0) + 1;
-    const catId = IC.state.activeCategory;
-    const color = IC.getCategoryColor(catId);
-
-    shape.set({
-        annotationId: annId,
-        annotationNumber: annNum,
-        categoryId: catId,
-        isAnnotation: true,
-        selectable: true,
-    });
-
-    // Add number badge near the shape
-    const bound = shape.getBoundingRect();
-    const badge = createBadge(bound.left + bound.width + 4, bound.top - 4, annNum, color);
-    badge.annotationId = annId;
-    badge.annotationNumber = annNum;
-    badge.categoryId = catId;
-    badge.isAnnotation = true;
-    badge.isBadge = true;
-
-    canvas.add(badge);
-    canvas.renderAll();
-
-    // Create annotation data
-    if (!img.annotations) img.annotations = [];
-    img.annotations.push({
-        id: annId,
-        number: annNum,
-        categoryId: catId,
-        note: '',
-        type: IC.state.activeTool,
-    });
-
-    IC.saveCurrentCanvasState();
-    IC.renderAnnotationsPanel(img);
+// ========== AUTO-FOCUS NOTE ==========
+function autoFocusNote(annId) {
+    setTimeout(function() {
+        var d = document.querySelector('.note-display[data-ann-id="' + annId + '"]');
+        if (d) d.click();
+    }, 120);
 }
 
-function createBadge(x, y, number, color) {
-    const circle = new fabric.Circle({
-        radius: 12,
-        fill: color,
-        originX: 'center',
-        originY: 'center',
-    });
-
-    const text = new fabric.Text(String(number), {
-        fontSize: 11,
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontWeight: '700',
-        fill: '#0d0d12',
-        originX: 'center',
-        originY: 'center',
-    });
-
-    const group = new fabric.Group([circle, text], {
-        left: x,
-        top: y,
-        selectable: false,
-        evented: false,
-        hoverCursor: 'default',
-    });
-
-    return group;
-}
-
-// ========== DELETE ==========
+// ========== DELETE SELECTED ==========
 IC.deleteSelectedAnnotation = function() {
     if (!canvas) return;
-    const active = canvas.getActiveObjects();
+    var active = canvas.getActiveObjects();
     if (active.length === 0) return;
-
     IC.pushUndo();
-    const img = IC.getCurrentImage();
+    var img = IC.getCurrentImage();
     if (!img) return;
 
-    active.forEach(obj => {
+    active.forEach(function(obj) {
         if (obj.annotationId) {
-            // Remove associated badge
-            canvas.getObjects().forEach(o => {
-                if (o.annotationId === obj.annotationId) {
-                    canvas.remove(o);
-                }
-            });
-            // Remove annotation data
+            canvas.getObjects().filter(function(o) { return o.annotationId === obj.annotationId; })
+                .forEach(function(o) { canvas.remove(o); });
             if (img.annotations) {
-                img.annotations = img.annotations.filter(a => a.id !== obj.annotationId);
+                img.annotations = img.annotations.filter(function(a) { return a.id !== obj.annotationId; });
             }
         }
         canvas.remove(obj);
@@ -543,48 +540,38 @@ IC.deleteSelectedAnnotation = function() {
     canvas.renderAll();
     IC.saveCurrentCanvasState();
     IC.renderAnnotationsPanel(img);
+    IC.updateMarkerSelect();
 };
 
 // ========== SELECTION EVENTS ==========
 function onSelectionChanged(opt) {
-    const obj = opt.selected && opt.selected[0];
+    var obj = opt.selected && opt.selected[0];
     if (obj && obj.annotationId) {
-        highlightAnnotationInPanel(obj.annotationId);
+        document.querySelectorAll('.annotation-item').forEach(function(el) {
+            el.classList.toggle('selected', el.dataset.annId === obj.annotationId);
+        });
     }
 }
-
 function onSelectionCleared() {
-    document.querySelectorAll('.annotation-item').forEach(el => el.classList.remove('selected'));
-}
-
-function highlightAnnotationInPanel(annId) {
-    document.querySelectorAll('.annotation-item').forEach(el => {
-        el.classList.toggle('selected', el.dataset.annId === annId);
-    });
+    document.querySelectorAll('.annotation-item').forEach(function(el) { el.classList.remove('selected'); });
 }
 
 // ========== ZOOM ==========
 IC.zoomIn = function() {
     if (!canvas) return;
     currentZoom = Math.min(currentZoom * 1.2, 10);
-    canvas.setZoom(currentZoom);
-    updateZoomDisplay();
+    canvas.setZoom(currentZoom); updateZoomDisplay();
 };
-
 IC.zoomOut = function() {
     if (!canvas) return;
     currentZoom = Math.max(currentZoom / 1.2, 0.1);
-    canvas.setZoom(currentZoom);
-    updateZoomDisplay();
+    canvas.setZoom(currentZoom); updateZoomDisplay();
 };
-
 IC.zoomFit = function() {
     if (!canvas) return;
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    currentZoom = 1;
-    updateZoomDisplay();
+    currentZoom = 1; updateZoomDisplay();
 };
-
 function updateZoomDisplay() {
     document.getElementById('zoomLevel').textContent = Math.round(currentZoom * 100) + '%';
 }
@@ -592,236 +579,176 @@ function updateZoomDisplay() {
 // ========== RENDER ANNOTATIONS PANEL ==========
 IC.renderAnnotationsPanel = function(img) {
     if (!img) return;
-    const container = document.getElementById('annotationsList');
-    const countEl = document.getElementById('annotationCount');
+    var container = document.getElementById('annotationsList');
+    var countEl = document.getElementById('annotationCount');
 
-    // Refresh general notes display
     if (IC.refreshGeneralNotes) IC.refreshGeneralNotes();
-
-    // Update marker number selector
     if (IC.updateMarkerSelect) IC.updateMarkerSelect();
 
     if (!img.annotations || img.annotations.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;padding:8px 0;">Sin anotaciones. Usa las herramientas para anotar la imagen.</p>';
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;padding:8px 0;">Sin anotaciones. Usa las herramientas para anotar.</p>';
         countEl.textContent = '0';
         return;
     }
-
     countEl.textContent = img.annotations.length;
 
-    container.innerHTML = img.annotations.map(ann => {
-        const cat = IC.getCategoryById(ann.categoryId);
-        const catColor = cat ? cat.color : '#888888';
-        const catOptions = IC.state.categories.map(c =>
-            `<option value="${c.id}" ${c.id === ann.categoryId ? 'selected' : ''}>${c.name}</option>`
-        ).join('');
+    container.innerHTML = img.annotations.map(function(ann) {
+        var cat = IC.getCategoryById(ann.categoryId);
+        var catColor = cat ? cat.color : '#888';
+        var catOpts = IC.state.categories.map(function(c) {
+            return '<option value="' + c.id + '"' + (c.id === ann.categoryId ? ' selected' : '') + '>' + c.name + '</option>';
+        }).join('');
 
-        const noteText = ann.note || '';
-        const isEmpty = !noteText.trim();
-        const displayText = isEmpty ? 'Clic para anotar...' : escHtml(noteText);
-        const emptyClass = isEmpty ? ' empty' : '';
+        var nt = ann.note || '';
+        var empty = !nt.trim();
+        var disp = empty ? 'Clic para anotar...' : escHtml(nt);
+        var cls = empty ? ' empty' : '';
 
-        return `
-        <div class="annotation-item" data-ann-id="${ann.id}" style="border-left-color:${catColor}">
-            <div class="annotation-header">
-                <span class="annotation-number" style="background:${catColor}">${ann.number}</span>
-                <select class="annotation-category-select" data-ann-id="${ann.id}">
-                    ${catOptions}
-                </select>
-                <button class="annotation-delete" data-ann-id="${ann.id}" title="Eliminar">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-            <div class="note-display${emptyClass}" data-ann-id="${ann.id}">${displayText}</div>
-            <textarea class="annotation-note hidden" data-ann-id="${ann.id}" placeholder="Nota para esta anotación...">${escHtml(noteText)}</textarea>
-            <div class="note-edit-hint">Enter para guardar · Shift+Enter para salto de línea</div>
-        </div>`;
+        return '<div class="annotation-item" data-ann-id="' + ann.id + '" style="border-left-color:' + catColor + '">' +
+            '<div class="annotation-header">' +
+                '<span class="annotation-number" style="background:' + catColor + '">' + ann.number + '</span>' +
+                '<select class="annotation-category-select" data-ann-id="' + ann.id + '">' + catOpts + '</select>' +
+                '<button class="annotation-delete" data-ann-id="' + ann.id + '" title="Eliminar"><span class="material-symbols-outlined">close</span></button>' +
+            '</div>' +
+            '<div class="note-display' + cls + '" data-ann-id="' + ann.id + '">' + disp + '</div>' +
+            '<textarea class="annotation-note hidden" data-ann-id="' + ann.id + '" placeholder="Nota...">' + escHtml(nt) + '</textarea>' +
+            '<div class="note-edit-hint">Enter para guardar · Shift+Enter para salto de línea</div>' +
+        '</div>';
     }).join('');
 
-    // Note display → click to edit
-    container.querySelectorAll('.note-display').forEach(el => {
-        el.addEventListener('click', (e) => {
+    // -- Note display/edit --
+    container.querySelectorAll('.note-display').forEach(function(el) {
+        el.addEventListener('click', function(e) {
             e.stopPropagation();
-            const annId = el.dataset.annId;
-            const textarea = container.querySelector(`textarea.annotation-note[data-ann-id="${annId}"]`);
-            const hint = el.nextElementSibling.nextElementSibling; // hint div
+            var ta = container.querySelector('textarea.annotation-note[data-ann-id="' + el.dataset.annId + '"]');
+            var hint = ta.nextElementSibling;
             el.classList.add('hidden');
-            textarea.classList.remove('hidden');
+            ta.classList.remove('hidden');
             hint.style.display = 'block';
-            textarea.focus();
+            ta.focus();
         });
     });
 
-    // Textarea → Enter to save, blur to save
-    container.querySelectorAll('.annotation-note').forEach(el => {
-        el.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                el.blur();
-            }
+    container.querySelectorAll('.annotation-note').forEach(function(el) {
+        el.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
         });
-
-        el.addEventListener('blur', (e) => {
-            const annId = e.target.dataset.annId;
-            const ann = img.annotations.find(a => a.id === annId);
+        el.addEventListener('blur', function(e) {
+            var annId = e.target.dataset.annId;
+            var ann = img.annotations.find(function(a) { return a.id === annId; });
             if (ann) ann.note = e.target.value;
             IC.saveCurrentCanvasState();
-
-            // Collapse back to display
-            const display = container.querySelector(`.note-display[data-ann-id="${annId}"]`);
-            const hint = e.target.nextElementSibling;
-            if (display) {
-                const text = e.target.value.trim();
-                display.textContent = text || 'Clic para anotar...';
-                display.classList.toggle('empty', !text);
-                display.classList.remove('hidden');
+            var disp = container.querySelector('.note-display[data-ann-id="' + annId + '"]');
+            var hint = e.target.nextElementSibling;
+            if (disp) {
+                var t = e.target.value.trim();
+                disp.textContent = t || 'Clic para anotar...';
+                disp.classList.toggle('empty', !t);
+                disp.classList.remove('hidden');
             }
             e.target.classList.add('hidden');
             if (hint) hint.style.display = 'none';
         });
-
-        el.addEventListener('input', (e) => {
-            const ann = img.annotations.find(a => a.id === e.target.dataset.annId);
+        el.addEventListener('input', function(e) {
+            var ann = img.annotations.find(function(a) { return a.id === e.target.dataset.annId; });
             if (ann) ann.note = e.target.value;
         });
     });
 
-    container.querySelectorAll('.annotation-category-select').forEach(el => {
-        el.addEventListener('change', (e) => {
-            const annId = e.target.dataset.annId;
-            const newCatId = e.target.value;
-            const ann = img.annotations.find(a => a.id === annId);
-            if (ann) {
-                IC.pushUndo();
-                ann.categoryId = newCatId;
-                updateAnnotationColor(annId, newCatId);
-                IC.renderAnnotationsPanel(img);
-            }
+    // -- Category change --
+    container.querySelectorAll('.annotation-category-select').forEach(function(el) {
+        el.addEventListener('change', function(e) {
+            var annId = e.target.dataset.annId, newCat = e.target.value;
+            var ann = img.annotations.find(function(a) { return a.id === annId; });
+            if (ann) { IC.pushUndo(); ann.categoryId = newCat; updateAnnColors(annId, newCat); IC.renderAnnotationsPanel(img); }
         });
     });
 
-    container.querySelectorAll('.annotation-delete').forEach(el => {
-        el.addEventListener('click', (e) => {
-            const annId = el.dataset.annId;
+    // -- Delete --
+    container.querySelectorAll('.annotation-delete').forEach(function(el) {
+        el.addEventListener('click', function() {
+            var annId = el.dataset.annId;
             IC.pushUndo();
             if (canvas) {
-                canvas.getObjects().filter(o => o.annotationId === annId).forEach(o => canvas.remove(o));
+                canvas.getObjects().filter(function(o) { return o.annotationId === annId; }).forEach(function(o) { canvas.remove(o); });
                 canvas.renderAll();
             }
-            img.annotations = img.annotations.filter(a => a.id !== annId);
+            img.annotations = img.annotations.filter(function(a) { return a.id !== annId; });
             IC.saveCurrentCanvasState();
             IC.renderAnnotationsPanel(img);
+            IC.updateMarkerSelect();
         });
     });
 
-    // Click annotation item to select on canvas
-    container.querySelectorAll('.annotation-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            if (e.target.closest('.note-display') || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
-            const annId = el.dataset.annId;
-            if (!canvas) return;
-            const obj = canvas.getObjects().find(o => o.annotationId === annId && !o.isBadge);
-            if (obj) {
-                canvas.setActiveObject(obj);
-                canvas.renderAll();
-            }
+    // -- Click to select on canvas --
+    container.querySelectorAll('.annotation-item').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            if (e.target.closest('.note-display') || e.target.tagName === 'TEXTAREA' ||
+                e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+            var obj = canvas ? canvas.getObjects().find(function(o) { return o.annotationId === el.dataset.annId && !o._isBadge; }) : null;
+            if (obj) { canvas.setActiveObject(obj); canvas.renderAll(); }
         });
     });
 };
 
-function updateAnnotationColor(annId, catId) {
+// ========== UPDATE COLORS ==========
+function updateAnnColors(annId, catId) {
     if (!canvas) return;
-    const color = IC.getCategoryColor(catId);
-    canvas.getObjects().forEach(obj => {
-        if (obj.annotationId !== annId) return;
-        if (obj.isBadge) {
-            // Update badge color
-            if (obj._objects && obj._objects[0]) {
-                obj._objects[0].set('fill', color);
-            }
+    var color = IC.getCategoryColor(catId);
+    canvas.getObjects().forEach(function(o) {
+        if (o.annotationId !== annId) return;
+        if (o._isBadge) {
+            if (o._objects && o._objects[0]) o._objects[0].set('fill', color);
         } else {
-            if (obj.stroke) obj.set('stroke', color);
-            if (obj.fill && obj.fill !== 'transparent' && obj.type !== 'group') {
-                obj.set('fill', colorAlpha(color, 0.12));
-            }
+            if (o.stroke) o.set('stroke', color);
+            if (o.fill && o.fill !== '' && o.type !== 'path') o.set('fill', colorAlpha(color, 0.12));
         }
-        obj.categoryId = catId;
+        o.categoryId = catId;
     });
     canvas.renderAll();
     IC.saveCurrentCanvasState();
 }
 
-// ========== GENERAL NOTES (display/edit pattern) ==========
-document.addEventListener('DOMContentLoaded', () => {
-    const display = document.getElementById('generalNotesDisplay');
-    const textarea = document.getElementById('generalNotes');
-    const hint = document.getElementById('generalNotesHint');
+// ========== GENERAL NOTES ==========
+document.addEventListener('DOMContentLoaded', function() {
+    var display = document.getElementById('generalNotesDisplay');
+    var textarea = document.getElementById('generalNotes');
+    var hint = document.getElementById('generalNotesHint');
 
-    function showGeneralNotesDisplay() {
-        const img = IC.getCurrentImage();
-        const text = img ? (img.generalNotes || '') : '';
-        textarea.classList.add('hidden');
-        hint.style.display = 'none';
-        display.classList.remove('hidden');
-        if (text.trim()) {
-            display.textContent = text;
-            display.classList.remove('empty');
-        } else {
-            display.textContent = 'Clic para agregar notas...';
-            display.classList.add('empty');
-        }
+    function show() {
+        var img = IC.getCurrentImage();
+        var t = img ? (img.generalNotes || '') : '';
+        textarea.classList.add('hidden'); hint.style.display = 'none'; display.classList.remove('hidden');
+        if (t.trim()) { display.textContent = t; display.classList.remove('empty'); }
+        else { display.textContent = 'Clic para agregar notas...'; display.classList.add('empty'); }
     }
-
-    display.addEventListener('click', () => {
-        const img = IC.getCurrentImage();
-        if (!img) return;
-        display.classList.add('hidden');
-        textarea.classList.remove('hidden');
-        hint.style.display = 'block';
-        textarea.value = img.generalNotes || '';
-        textarea.focus();
+    display.addEventListener('click', function() {
+        var img = IC.getCurrentImage(); if (!img) return;
+        display.classList.add('hidden'); textarea.classList.remove('hidden');
+        hint.style.display = 'block'; textarea.value = img.generalNotes || ''; textarea.focus();
     });
-
-    textarea.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            textarea.blur();
-        }
+    textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); textarea.blur(); }
     });
-
-    textarea.addEventListener('blur', () => {
-        const img = IC.getCurrentImage();
-        if (img) img.generalNotes = textarea.value;
-        IC.saveCurrentCanvasState();
-        showGeneralNotesDisplay();
+    textarea.addEventListener('blur', function() {
+        var img = IC.getCurrentImage(); if (img) img.generalNotes = textarea.value; show();
     });
-
-    textarea.addEventListener('input', () => {
-        const img = IC.getCurrentImage();
-        if (img) img.generalNotes = textarea.value;
+    textarea.addEventListener('input', function() {
+        var img = IC.getCurrentImage(); if (img) img.generalNotes = textarea.value;
     });
-
-    // Expose for use when switching images
-    IC.refreshGeneralNotes = showGeneralNotesDisplay;
+    IC.refreshGeneralNotes = show;
 });
 
-// ========== EXPORT CANVAS AS IMAGE ==========
-IC.getCanvasDataURL = function() {
-    if (!canvas) return null;
-    return canvas.toDataURL({ format: 'png', multiplier: 2 });
-};
+// ========== EXPORT CANVAS ==========
+IC.getCanvasDataURL = function() { return canvas ? canvas.toDataURL({ format: 'png', multiplier: 2 }) : null; };
 
 // ========== HELPERS ==========
 function colorAlpha(hex, alpha) {
-    const r = parseInt(hex.slice(1,3), 16);
-    const g = parseInt(hex.slice(3,5), 16);
-    const b = parseInt(hex.slice(5,7), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
+    if (!hex || hex.charAt(0) !== '#') return 'rgba(136,136,136,' + alpha + ')';
+    return 'rgba(' + parseInt(hex.slice(1,3),16) + ',' + parseInt(hex.slice(3,5),16) + ',' + parseInt(hex.slice(5,7),16) + ',' + alpha + ')';
 }
-
-function escHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function escHtml(s) {
+    return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
 }
 
 })();
