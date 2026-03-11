@@ -7,65 +7,94 @@
 
 IC.initCorpus = function() {
     initFileInput();
+    initDragDrop();
     initMetadataListeners();
     initTagListeners();
 };
+
+// ========== LOAD IMAGE FILES (shared) ==========
+function loadImageFiles(files) {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    IC.pushUndo();
+    const slots = new Array(imageFiles.length);
+    let loaded = 0;
+
+    imageFiles.forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            slots[idx] = {
+                id: IC.uid(),
+                name: file.name,
+                dataUrl: ev.target.result,
+                metadata: { source: '', author: '', date: '', medium: '', context: '', custom: '' },
+                tags: [],
+                generalNotes: '',
+                annotations: [],
+                canvasObjects: [],
+            };
+            loaded++;
+
+            if (loaded === imageFiles.length) {
+                slots.forEach(img => IC.state.images.push(img));
+                IC.renderGallery();
+                IC.renderCorpusTags();
+                if (IC.state.viewMode === 'grid') IC.renderGridView();
+                if (!IC.state.currentImageId && IC.state.images.length > 0) {
+                    if (IC.state.viewMode === 'single') {
+                        selectImage(IC.state.images[0].id);
+                    } else {
+                        IC.state.currentImageId = IC.state.images[0].id;
+                    }
+                }
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
 // ========== FILE INPUT ==========
 function initFileInput() {
     const fileInput = document.getElementById('fileInput');
     fileInput.addEventListener('change', (e) => {
-        const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
-        if (files.length === 0) return;
-
-        IC.pushUndo();
-        const slots = new Array(files.length);
-        let loaded = 0;
-
-        files.forEach((file, idx) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                slots[idx] = {
-                    id: IC.uid(),
-                    name: file.name,
-                    dataUrl: ev.target.result,
-                    metadata: {
-                        source: '',
-                        author: '',
-                        date: '',
-                        medium: '',
-                        context: '',
-                        custom: '',
-                    },
-                    tags: [],
-                    generalNotes: '',
-                    annotations: [],
-                    canvasObjects: [],
-                };
-                loaded++;
-
-                if (loaded === files.length) {
-                    // Append in original file-picker order
-                    slots.forEach(img => IC.state.images.push(img));
-                    IC.renderGallery();
-                    IC.renderCorpusTags();
-                    if (IC.state.viewMode === 'grid') {
-                        IC.renderGridView();
-                    }
-                    if (!IC.state.currentImageId && IC.state.images.length > 0) {
-                        if (IC.state.viewMode === 'single') {
-                            selectImage(IC.state.images[0].id);
-                        } else {
-                            IC.state.currentImageId = IC.state.images[0].id;
-                        }
-                    }
-                }
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // Reset input
+        loadImageFiles(e.target.files);
         fileInput.value = '';
+    });
+}
+
+// ========== DRAG AND DROP ==========
+function initDragDrop() {
+    const dropZone = document.getElementById('galleryScroll');
+
+    ['dragenter', 'dragover'].forEach(ev => {
+        dropZone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('drag-over');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(ev => {
+        dropZone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('drag-over');
+        });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) loadImageFiles(files);
+    });
+
+    // Also allow drop on entire workspace
+    const workspace = document.getElementById('workspace');
+    workspace.addEventListener('dragover', (e) => { e.preventDefault(); });
+    workspace.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const files = e.dataTransfer.files;
+        if (files.length > 0) loadImageFiles(files);
     });
 }
 
@@ -85,22 +114,26 @@ IC.renderGallery = function() {
     gallery.innerHTML = IC.state.images.map((img, idx) => {
         const isActive = img.id === IC.state.currentImageId;
         const isBatchSel = IC.state.batchSelected.has(img.id);
+        const isPinned = IC.state.pinnedIds.includes(img.id);
         const classes = ['gallery-item'];
         if (isActive) classes.push('active');
         if (isBatchSel) classes.push('batch-selected');
+        if (isPinned) classes.push('pinned');
 
-        // Category badges
         const usedCats = new Set((img.annotations || []).map(a => a.categoryId));
         const badges = Array.from(usedCats).slice(0, 4).map(catId => {
             const color = IC.getCategoryColor(catId);
             return `<span class="item-badge" style="background:${color}"></span>`;
         }).join('');
 
+        const pinLabel = isPinned ? (IC.state.pinnedIds.indexOf(img.id) + 1) : '';
+
         return `
         <div class="${classes.join(' ')}" data-img-id="${img.id}">
             <img src="${img.dataUrl}" alt="${img.name}" loading="lazy">
             <span class="item-index">${idx + 1}</span>
             <div class="item-badges">${badges}</div>
+            <span class="item-pin">${pinLabel}</span>
             <div class="batch-check"></div>
             <button class="item-remove" data-img-id="${img.id}" title="Eliminar">&times;</button>
         </div>`;
@@ -121,6 +154,9 @@ IC.renderGallery = function() {
                 IC.renderGallery();
                 IC.updateBatchCount();
                 if (IC.state.viewMode === 'grid') IC.renderGridView();
+            } else if (e.ctrlKey || e.metaKey) {
+                // Ctrl+click: toggle pin for multi-view
+                IC.togglePin(imgId);
             } else {
                 selectImage(imgId);
             }
@@ -132,6 +168,8 @@ IC.renderGallery = function() {
             e.stopPropagation();
             const imgId = btn.dataset.imgId;
             IC.pushUndo();
+            // Unpin if pinned
+            IC.state.pinnedIds = IC.state.pinnedIds.filter(id => id !== imgId);
             IC.state.images = IC.state.images.filter(i => i.id !== imgId);
             if (IC.state.currentImageId === imgId) {
                 IC.state.currentImageId = IC.state.images.length > 0 ? IC.state.images[0].id : null;
