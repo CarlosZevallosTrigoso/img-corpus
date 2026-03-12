@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>img-corpus v.0.5 (beta) — Análisis Visual de Corpus</title>
+    <title>img-corpus v1 — Análisis Visual de Corpus</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
@@ -14,13 +14,19 @@
     <!-- HEADER -->
     <header id="app-header">
         <div class="header-left">
-            <a href="javascript:location.reload()" class="logo"><span class="logo-img">img</span><span class="logo-dash">-</span><span class="logo-corpus">corpus</span> <span class="logo-ver">v.0.5 (beta)</span></a>
+            <a href="javascript:location.reload()" class="logo"><span class="logo-img">img</span><span class="logo-dash">-</span><span class="logo-corpus">corpus</span> <span class="logo-ver">v1</span></a>
+            <button class="btn btn-xs btn-ghost" id="btnGuideMode" title="Modo guiado: muestra explicaciones en la interfaz">
+                <span class="material-symbols-outlined">school</span><span class="btn-label">Modo guiado</span>
+            </button>
         </div>
         <div class="header-center">
             <div class="session-name" id="sessionName" contenteditable="true" spellcheck="false">Sesión sin título</div>
             <span class="autosave-indicator" id="autosaveIndicator"><span class="material-symbols-outlined">cloud_done</span><span id="autosaveText">guardado</span></span>
         </div>
         <div class="header-right">
+            <div class="guide-tip guide-tip-inline" data-guide="header">
+                ⚙ Configuración: niveles de análisis y auto-guardado. 📖 Diario: reflexiones de investigación. Exportar guarda un JSON con todo tu trabajo. Informe genera HTML/PDF con las imágenes anotadas.
+            </div>
             <button class="btn btn-ghost" id="btnSettings" title="Configuración del proyecto"><span class="material-symbols-outlined">settings</span></button>
             <button class="btn btn-ghost" id="btnUndo" title="Deshacer"><span class="material-symbols-outlined">undo</span></button>
             <button class="btn btn-ghost" id="btnRedo" title="Rehacer"><span class="material-symbols-outlined">redo</span></button>
@@ -76,6 +82,10 @@
                     <button class="coll-filter-clear" id="collFilterClear" title="Mostrar todo">&times;</button>
                 </div>
                 <div class="gallery-scroll" id="galleryScroll">
+                    <div class="guide-tip" data-guide="gallery">
+                        <strong>Corpus de imágenes</strong><br>
+                        Arrastra archivos aquí o usa el botón <em>+</em> de arriba. Las imágenes se ordenan alfabéticamente. Clic abre una imagen para anotar. <strong>⌘/Ctrl+clic</strong> selecciona varias para operaciones en lote (etiquetar, asignar a colección, eliminar). Las flechas ←→ navegan entre imágenes.
+                    </div>
                     <div class="gallery" id="gallery"></div>
                     <div class="gallery-empty" id="galleryEmpty">
                         <span class="material-symbols-outlined">collections</span>
@@ -94,6 +104,10 @@
                         <h3>Categorías <button class="info-btn" data-info="Las categorías clasifican tus anotaciones. Cada herramienta de anotación dibuja con el color de la categoría activa (selector en el toolbar). Crea categorías según tu marco analítico.">i</button></h3>
                         <button class="btn btn-xs btn-ghost" id="btnAddCategory"><span class="material-symbols-outlined">add</span></button>
                     </div>
+                    <div class="guide-tip" data-guide="categories">
+                        <strong>Categorías de anotación</strong><br>
+                        Antes de anotar, crea al menos una categoría (ej: "composición", "tipografía", "gesto"). Cada categoría tiene un color. Al dibujar sobre la imagen, la anotación hereda el color de la categoría seleccionada en el toolbar. Puedes cambiar la categoría de una anotación después.
+                    </div>
                     <div id="categoriesList"></div>
                 </div>
             </div>
@@ -105,9 +119,9 @@
                         <button class="btn btn-xs btn-accent" id="btnAddCollection" title="Nueva colección"><span class="material-symbols-outlined">create_new_folder</span><span class="btn-label">Nueva colección</span></button>
                     </div>
                 </div>
-                <div class="coll-help" id="collHelp">
-                    <p>Las colecciones organizan el corpus sin duplicar imágenes. Una imagen puede pertenecer a varias colecciones.</p>
-                    <p><strong>Asignar imágenes:</strong> clic en <span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle">add_circle</span> junto a una colección para agregar la imagen activa, o usa el botón <span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle">checklist</span> (modo batch) para asignar varias a la vez.</p>
+                <div class="guide-tip" data-guide="collections">
+                    <strong>Colecciones</strong><br>
+                    Organiza tu corpus en subgrupos temáticos sin duplicar imágenes. Una imagen puede estar en varias colecciones. Clic en una colección <strong>filtra toda la interfaz</strong>: la galería, la grilla, la búsqueda y los informes muestran solo las imágenes de esa colección. Para crear colecciones rápido: selecciona imágenes con ⌘/Ctrl+clic en la galería y usa los botones "A colección" o "Nueva" en la barra de selección.
                 </div>
                 <div class="collections-tree" id="collectionsTree">
                     <div class="coll-empty">Crea tu primera colección con el botón de arriba.</div>
@@ -122,6 +136,9 @@
         <section id="workspace">
             <!-- Toolbar -->
             <div class="toolbar" id="toolbar">
+                <div class="guide-tip guide-tip-inline" data-guide="toolbar">
+                    <strong>Herramientas:</strong> Seleccionar (V) · Rectángulo (R) · Elipse (E) · Polígono (P) · Dibujo libre (D) · Flecha (A) · Texto (T) · Marcador (M) · Relación (L). Mantén <strong>Space</strong> para desplazarte con la mano. <strong>Alt+arrastrar</strong> también desplaza. Rueda del mouse para zoom.
+                </div>
                 <div class="tool-group">
                     <button class="tool-btn active" data-tool="select" title="Seleccionar (V)"><span class="material-symbols-outlined">arrow_selector_tool</span></button>
                     <button class="tool-btn" data-tool="rect" title="Rectángulo (R)"><span class="material-symbols-outlined">rectangle</span></button>
@@ -167,10 +184,16 @@
 
             <!-- Views -->
             <div class="canvas-wrap" id="canvasContainer">
+                <div class="guide-tip guide-tip-overlay" data-guide="canvas">
+                    <strong>Canvas de anotación</strong> — Selecciona una herramienta del toolbar y dibuja sobre la imagen. Cada marca crea una anotación numerada que aparece en el panel derecho. <strong>Space+arrastrar</strong> para desplazarte. <strong>Rueda del mouse</strong> para zoom. <strong>Delete</strong> elimina la selección.
+                </div>
                 <canvas id="mainCanvas"></canvas>
                 <div class="canvas-empty" id="canvasEmpty"><span class="material-symbols-outlined">image</span><p>Selecciona una imagen</p></div>
             </div>
             <div class="grid-view hidden" id="gridView">
+                <div class="guide-tip guide-tip-inline" data-guide="grid">
+                    <strong>Vista de grilla</strong> — Panorámica de todo el corpus (o colección activa). Clic selecciona/deselecciona imágenes. Doble clic abre para anotar. Usa el slider de la derecha para agrandar. Las tarjetas muestran un preview de notas y anotaciones.
+                </div>
                 <div class="grid-toolbar">
                     <span class="grid-toolbar-info" id="gridInfo"></span>
                     <div class="grid-slider-row">
@@ -200,6 +223,10 @@
 
             <!-- Annotations -->
             <div class="rpanel-content active" id="rpAnnotations">
+                <div class="guide-tip" data-guide="annotations">
+                    <strong>Panel de anotaciones</strong><br>
+                    Todo lo que ves aquí pertenece a la imagen activa (indicada arriba). <strong>Notas</strong> son texto libre sobre la imagen. <strong>Anotaciones</strong> son las marcas visuales que dibujas sobre el canvas — cada una tiene campos para los niveles de análisis que configuraste en ⚙ Configuración. <strong>Tab</strong> avanza entre campos, <strong>Enter</strong> guarda. Si dejas todos los campos vacíos, la anotación se elimina. Al pasar el mouse sobre una anotación aquí, se resalta en el canvas (y viceversa).
+                </div>
                 <div class="scope-indicator" id="annScope"></div>
                 <div class="rp-section">
                     <h4>Notas <button class="btn btn-xs btn-ghost" id="btnAddNote" title="Agregar nota"><span class="material-symbols-outlined">add</span></button> <button class="info-btn" data-info="Notas libres sobre esta imagen. Puedes agregar múltiples notas independientes.">i</button></h4>
@@ -217,6 +244,10 @@
 
             <!-- Metadata -->
             <div class="rpanel-content" id="rpMetadata">
+                <div class="guide-tip" data-guide="metadata">
+                    <strong>Metadatos</strong><br>
+                    Información descriptiva de la imagen: fuente, autor, fecha, medio, contexto. Editar aquí modifica solo la imagen activa. Si tienes varias seleccionadas (⌘/Ctrl+clic), aparece un botón "Aplicar a selección" que copia los metadatos de la imagen activa a todas las seleccionadas. Los campos personalizados (botón +) se definen a nivel del proyecto y aparecen para todas las imágenes.
+                </div>
                 <div class="scope-indicator" id="metaScope"></div>
                 <div class="rp-section">
                     <h4>Campos estándar <button class="info-btn" data-info="Metadatos descriptivos de la imagen. Editar aquí modifica solo la imagen activa (la que ves en el canvas). Para aplicar un mismo valor a varias imágenes, selecciónalas con ⌘/Ctrl+clic y usa 'Aplicar a selección'.">i</button></h4>
@@ -231,6 +262,10 @@
 
             <!-- Tags -->
             <div class="rpanel-content" id="rpTags">
+                <div class="guide-tip" data-guide="tags">
+                    <strong>Etiquetas</strong><br>
+                    Palabras clave asignadas por imagen. Escribe y presiona Enter (o clic en +) para agregar. Puedes escribir varias separadas por coma. Abajo se muestra el panorama de todas las etiquetas del corpus con su frecuencia. Si seleccionas imágenes con ⌘/Ctrl+clic, aparece "Aplicar etiquetas a selección" para copiar las etiquetas de esta imagen a las seleccionadas.
+                </div>
                 <div class="scope-indicator" id="tagScope"></div>
                 <div class="rp-section">
                     <h4>Etiquetas de esta imagen <button class="info-btn" data-info="Las etiquetas se aplican a la imagen activa. Para etiquetar varias a la vez: selecciónalas con ⌘/Ctrl+clic en la galería y usa el botón 'Etiquetar' en la barra de selección, o el botón 'Aplicar a selección' abajo.">i</button></h4>
@@ -249,6 +284,10 @@
 
             <!-- Chains -->
             <div class="rpanel-content" id="rpChains">
+                <div class="guide-tip" data-guide="chains">
+                    <strong>Cadenas analíticas</strong><br>
+                    Una cadena agrupa anotaciones de <strong>distintas imágenes</strong> como instancias del mismo fenómeno visual (ej: "gesto deíctico", "encuadre cenital"). Crea una cadena, luego navega a cada imagen y usa "Vincular anotación actual" para agregar instancias. Usa la vista <strong>Concordancia (C)</strong> en el toolbar para ver todas las instancias de una cadena alineadas lado a lado.
+                </div>
                 <div class="rp-section">
                     <h4>Cadenas analíticas <button class="info-btn" data-info="Una cadena agrupa anotaciones de distintas imágenes como instancias del mismo fenómeno. Crea una cadena, luego vincula anotaciones desde cualquier imagen. Usa la vista Concordancia (C) para ver todas las instancias alineadas.">i</button></h4>
                     <button class="btn btn-xs btn-accent" id="btnNewChain" style="margin-bottom:8px"><span class="material-symbols-outlined">add_link</span> Nueva cadena</button>
@@ -258,6 +297,10 @@
 
             <!-- Search -->
             <div class="rpanel-content" id="rpSearch">
+                <div class="guide-tip" data-guide="search">
+                    <strong>Búsqueda</strong><br>
+                    Busca texto en cualquier campo del corpus: anotaciones, etiquetas, notas, metadatos, categorías, colecciones. Selecciona el tipo de campo, escribe tu término, y presiona Enter o clic en Buscar. Los resultados muestran las coincidencias resaltadas. Clic en un resultado abre esa imagen. La búsqueda respeta el filtro de colección activa.
+                </div>
                 <div class="rp-section">
                     <h4>Búsqueda en el corpus <button class="info-btn" data-info="Busca por cualquier campo a través de todo el corpus (o la colección activa). Selecciona el tipo de campo y escribe el término. Los resultados muestran coincidencias resaltadas. Clic en un resultado abre esa imagen.">i</button></h4>
                     <div class="search-builder" id="searchBuilder">
