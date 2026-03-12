@@ -9,6 +9,7 @@ IC.initCorpus = function() {
     initFileInput();
     initDragDropFiles();
     initSortButton();
+    IC.initGridSlider();
 };
 
 // ========== SORT ==========
@@ -297,14 +298,29 @@ function selectImage(id) {
 IC.selectImage = selectImage;
 
 // ========== GRID VIEW ==========
+IC.gridSize = 260;
+
 IC.renderGridView = function() {
     var c = document.getElementById('gridViewInner');
     var imgs = IC.getVisibleImages();
+    var info = document.getElementById('gridInfo');
+    var selCount = IC.state.batchSelected.size;
+
+    // Apply grid size
+    c.style.gridTemplateColumns = 'repeat(auto-fill, minmax(' + IC.gridSize + 'px, 1fr))';
+
+    if (info) {
+        info.textContent = imgs.length + ' imágenes' + (selCount ? ' · ' + selCount + ' seleccionadas' : '');
+    }
+
     if (!imgs.length) {
         c.innerHTML = '<div style="color:var(--t3);padding:40px;text-align:center">Sin imágenes' +
             (IC.state.activeCollectionId ? ' en esta colección' : '') + '.</div>';
         return;
     }
+
+    var firstLevel = IC.state.annotationLevels[0] || '';
+
     c.innerHTML = imgs.map(function(img) {
         var globalIdx = IC.state.images.indexOf(img) + 1;
         var isSel = IC.state.batchSelected.has(img.id);
@@ -314,21 +330,36 @@ IC.renderGridView = function() {
         var annCount = (img.annotations || []).length;
         var selClass = isSel ? ' grid-item-selected' : '';
 
+        // Notes preview
+        var notePreview = '';
+        if (img.notes && img.notes.length) {
+            var first = img.notes[0].text || '';
+            if (first.trim()) notePreview = '<div class="grid-item-notes">' + IC.esc(first.substring(0, 100)) + (first.length > 100 ? '...' : '') + '</div>';
+        }
+
+        // First annotation level preview
+        var annPreview = '';
+        if (annCount && firstLevel && img.annotations[0].levels) {
+            var txt = img.annotations[0].levels[firstLevel] || '';
+            if (txt.trim()) annPreview = '<div class="grid-item-ann-preview"><span class="grid-ann-num">' + img.annotations[0].number + '</span>' + IC.esc(txt.substring(0, 60)) + '</div>';
+        }
+
         return '<div class="grid-item' + selClass + '" data-id="' + img.id + '">' +
             '<div class="grid-item-img"><img src="' + img.dataUrl + '" loading="lazy"></div>' +
             '<div class="grid-item-body">' +
                 '<div class="grid-item-name">' + globalIdx + '. ' + IC.esc(img.name) + '</div>' +
-                (annCount ? '<div style="font-size:10px;color:var(--t3);margin-bottom:2px">' + annCount + ' anotaciones</div>' : '') +
+                (annCount ? '<div style="font-size:10px;color:var(--t3);margin-bottom:2px">' + annCount + ' anot.</div>' : '') +
                 (tags ? '<div class="grid-item-tags">' + tags + '</div>' : '') +
+                notePreview +
+                annPreview +
             '</div>' +
         '</div>';
     }).join('');
 
     c.querySelectorAll('.grid-item').forEach(function(el) {
-        // Single click: select/deselect
         el.addEventListener('click', function(e) {
             var id = el.dataset.id;
-            if (e.detail > 1) return; // ignore dblclick
+            if (e.detail > 1) return;
             if (IC.state.batchSelected.has(id)) {
                 IC.state.batchSelected.delete(id);
             } else {
@@ -338,12 +369,22 @@ IC.renderGridView = function() {
             IC.renderGridView();
         });
 
-        // Double click: open in single view
         el.addEventListener('dblclick', function() {
             IC.state.currentImageId = el.dataset.id;
             IC.setViewMode('single');
             selectImage(el.dataset.id);
         });
+    });
+};
+
+// Init grid slider
+IC.initGridSlider = function() {
+    var slider = document.getElementById('gridSlider');
+    if (!slider) return;
+    slider.addEventListener('input', function() {
+        IC.gridSize = parseInt(slider.value);
+        var c = document.getElementById('gridViewInner');
+        if (c) c.style.gridTemplateColumns = 'repeat(auto-fill, minmax(' + IC.gridSize + 'px, 1fr))';
     });
 };
 
