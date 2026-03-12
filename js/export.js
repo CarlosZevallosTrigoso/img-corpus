@@ -1,5 +1,5 @@
 /* ========================================
-   IMG-CORPUS v.0.5 — Export
+   IMG-CORPUS v1 — Export
    Session, reports with canvas snapshots,
    qualitative JSON, crops
    ======================================== */
@@ -16,7 +16,7 @@ IC.initExport=function(){
 // ========== SESSION EXPORT ==========
 IC.exportSession=function(){
     if(IC.saveCurrentCanvasState)IC.saveCurrentCanvasState();
-    var session={version:'0.5',exportDate:new Date().toISOString(),sessionName:IC.state.sessionName,canvasBg:IC.state.canvasBg,
+    var session={version:'1.0',exportDate:new Date().toISOString(),sessionName:IC.state.sessionName,canvasBg:IC.state.canvasBg,
         categories:IC.state.categories,collections:IC.state.collections,chains:IC.state.chains,
         annotationLevels:IC.state.annotationLevels,
         diary:IC.state.diary,auditLog:IC.state.auditLog,customMetaSchema:IC.state.customMetaSchema,
@@ -251,9 +251,9 @@ function buildHTML(snapshots,o){
 
     return'<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+esc(o.title)+'</title><style>'+reportCSS()+'</style></head><body>'+
     '<div class="rpt-hdr"><h1>'+esc(o.title)+'</h1>'+(o.author?'<div class="sub">'+esc(o.author)+'</div>':'')+
-    '<div class="rpt-meta">'+date+' · '+snapshots.length+' imágenes · img-corpus v.0.5</div></div>'+
+    '<div class="rpt-meta">'+date+' · '+snapshots.length+' imágenes · img-corpus v1</div></div>'+
     body+chainHTML+
-    '<div class="rpt-foot">Generado con img-corpus v.0.5 · '+date+'</div>'+
+    '<div class="rpt-foot">Generado con img-corpus v1 · '+date+'</div>'+
     '<script>var b=document.createElement("button");b.textContent="Guardar como PDF";b.style.cssText="position:fixed;bottom:16px;right:16px;padding:8px 16px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font:600 13px sans-serif;z-index:999";b.onclick=function(){window.print()};document.body.appendChild(b)<\/script></body></html>';
 }
 
@@ -283,7 +283,7 @@ function reportCSS(){
 function exportQualJSON(){
     var imgs=getScopedImages();
     var schema={
-        _schema:'img-corpus-qualitative-v0.5',
+        _schema:'img-corpus-qualitative-v1',
         exportDate:new Date().toISOString(),
         project:IC.state.sessionName,
         annotationLevels:IC.state.annotationLevels,
@@ -334,7 +334,7 @@ function exportCrops(){
         });
     });
     if(!crops.length){alert('Sin anotaciones.');return}
-    var blob=new Blob([JSON.stringify({_schema:'img-corpus-crops-v0.5',exportDate:new Date().toISOString(),crops:crops},null,2)],{type:'application/json'});
+    var blob=new Blob([JSON.stringify({_schema:'img-corpus-crops-v1',exportDate:new Date().toISOString(),crops:crops},null,2)],{type:'application/json'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='img-corpus-crops_'+ds()+'.json';a.click();URL.revokeObjectURL(a.href);
 }

@@ -123,7 +123,7 @@ IC.autoSave = function() {
     try {
         if (IC.saveCurrentCanvasState) IC.saveCurrentCanvasState();
         var data = {
-            version: '0.5-auto', savedAt: new Date().toISOString(),
+            version: '1.0-auto', savedAt: new Date().toISOString(),
             sessionName: IC.state.sessionName, canvasBg: IC.state.canvasBg,
             categories: IC.state.categories, collections: IC.state.collections,
             chains: IC.state.chains, annotationLevels: IC.state.annotationLevels,
@@ -779,6 +779,24 @@ function initNotesAndLevels() {
     });
 }
 
+// ========== GUIDED MODE ==========
+function initGuideMode() {
+    var btn = document.getElementById('btnGuideMode');
+    // Restore state
+    var saved = localStorage.getItem('img-corpus-guide-mode');
+    if (saved === 'true') {
+        document.body.classList.add('guided');
+        btn.classList.add('active');
+    }
+
+    btn.addEventListener('click', function() {
+        var isOn = document.body.classList.toggle('guided');
+        btn.classList.toggle('active', isOn);
+        localStorage.setItem('img-corpus-guide-mode', isOn);
+        IC.toast(isOn ? 'Modo guiado activado.' : 'Modo guiado desactivado.');
+    });
+}
+
 // ========== SETTINGS ==========
 function initSettings() {
     document.getElementById('btnSettings').addEventListener('click', function() {
@@ -1238,6 +1256,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initCategoryUI();
     initNotesAndLevels();
     initSettings();
+    initGuideMode();
     initSelection();
     initToolbar();
     initKeyboard();

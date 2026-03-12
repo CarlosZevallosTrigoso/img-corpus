@@ -1,5 +1,5 @@
 /* ========================================
-   IMG-CORPUS v.0.5 — Search & Concordance
+   IMG-CORPUS v1 — Search & Concordance
    Updated for levels/notes model
    ======================================== */
 (function(){
