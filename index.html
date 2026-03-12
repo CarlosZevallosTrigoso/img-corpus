@@ -18,8 +18,10 @@
         </div>
         <div class="header-center">
             <div class="session-name" id="sessionName" contenteditable="true" spellcheck="false">Sesión sin título</div>
+            <span class="autosave-indicator" id="autosaveIndicator"><span class="material-symbols-outlined">cloud_done</span><span id="autosaveText">guardado</span></span>
         </div>
         <div class="header-right">
+            <button class="btn btn-ghost" id="btnSettings" title="Configuración del proyecto"><span class="material-symbols-outlined">settings</span></button>
             <button class="btn btn-ghost" id="btnUndo" title="Deshacer"><span class="material-symbols-outlined">undo</span></button>
             <button class="btn btn-ghost" id="btnRedo" title="Rehacer"><span class="material-symbols-outlined">redo</span></button>
             <span class="hdr-sep"></span>
@@ -206,10 +208,6 @@
                 <div class="rp-section">
                     <h4>Anotaciones <span class="ann-count" id="annCount">0</span> <button class="info-btn" data-info="Cada anotación tiene niveles de análisis configurables. Si dejas todos los niveles vacíos, la anotación se elimina. Puedes agregar o renombrar niveles desde el botón de configuración.">i</button></h4>
                     <div id="annList"></div>
-                </div>
-                <div class="rp-section">
-                    <h4>Niveles de análisis <button class="btn btn-xs btn-ghost" id="btnAddLevel" title="Agregar nivel"><span class="material-symbols-outlined">add</span></button> <button class="info-btn" data-info="Los niveles organizan el análisis en capas. Cada anotación tendrá campos para cada nivel definido. Renombra haciendo clic. Ejemplos: 'Denotativo / Connotativo / Contextual' o 'Forma / Contenido / Circulación'.">i</button></h4>
-                    <div id="levelsList"></div>
                 </div>
                 <div class="rp-section">
                     <h4>Relaciones intra-imagen <button class="info-btn" data-info="Vincula dos anotaciones dentro de la misma imagen. Usa la herramienta Relación (L): clic en un badge, luego en otro, y elige el tipo.">i</button></h4>
@@ -421,6 +419,31 @@
     </div>
 
     <input type="file" id="importFileInput" accept=".json" hidden>
+
+    <!-- Project settings modal -->
+    <div class="modal-overlay" id="modalSettings">
+        <div class="modal">
+            <div class="modal-hdr"><h3>Configuración del proyecto</h3><button class="modal-x">&times;</button></div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h4>Niveles de análisis <button class="info-btn" data-info="Cada anotación tendrá un campo editable por cada nivel definido. Renombra haciendo clic. Ejemplos: 'Denotativo / Connotativo / Contextual' o 'Forma / Contenido / Circulación'.">i</button></h4>
+                    <p class="rp-hint">Cada anotación en el corpus tendrá campos para cada nivel. Clic en el nombre para renombrar.</p>
+                    <div id="levelsList"></div>
+                    <button class="btn btn-xs btn-accent" id="btnAddLevel" style="margin-top:6px"><span class="material-symbols-outlined">add</span> Agregar nivel</button>
+                </div>
+                <div class="settings-section">
+                    <h4>Auto-guardado</h4>
+                    <label class="ck"><input type="checkbox" id="settingsAutosave" checked> Guardar automáticamente cada 30 segundos en el navegador</label>
+                    <p class="rp-hint" style="margin-top:4px">Los datos se almacenan localmente. Exporta tu sesión para respaldo permanente.</p>
+                    <button class="btn btn-xs btn-ghost" id="btnClearAutosave" style="margin-top:4px"><span class="material-symbols-outlined">delete_outline</span> Borrar datos locales</button>
+                </div>
+            </div>
+            <div class="modal-foot"><button class="btn btn-primary modal-x">Cerrar</button></div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <!-- SCRIPTS -->
     <script src="js/app.js"></script>
