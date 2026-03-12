@@ -168,7 +168,17 @@
                 <canvas id="mainCanvas"></canvas>
                 <div class="canvas-empty" id="canvasEmpty"><span class="material-symbols-outlined">image</span><p>Selecciona una imagen</p></div>
             </div>
-            <div class="grid-view hidden" id="gridView"><div class="grid-view-inner" id="gridViewInner"></div></div>
+            <div class="grid-view hidden" id="gridView">
+                <div class="grid-toolbar">
+                    <span class="grid-toolbar-info" id="gridInfo"></span>
+                    <div class="grid-slider-row">
+                        <span class="material-symbols-outlined" style="font-size:14px;color:var(--t3)">grid_view</span>
+                        <input type="range" id="gridSlider" min="160" max="600" value="260" class="thumb-slider grid-slider">
+                        <span class="material-symbols-outlined" style="font-size:18px;color:var(--t3)">crop_original</span>
+                    </div>
+                </div>
+                <div class="grid-view-inner" id="gridViewInner"></div>
+            </div>
             <div class="concordance-view hidden" id="concordanceView"></div>
             <div class="graph-view hidden" id="graphView"><svg id="graphSvg"></svg></div>
         </section>
