@@ -29,7 +29,7 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;color:inherit
 #app-header{height:var(--hdr-h);display:flex;align-items:center;justify-content:space-between;padding:0 10px;background:var(--bg-surf);border-bottom:1px solid var(--brd);gap:12px;user-select:none}
 .header-left{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .logo{font-size:15px;font-weight:700;letter-spacing:-.5px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:baseline;gap:0}
-.logo-img{color:var(--ac)}.logo-dash{color:var(--t3)}.logo-corpus{color:var(--t1)}.logo-ver{font-size:10px;color:var(--t3);font-weight:400}
+.logo-img{color:var(--ac)}.logo-dash{color:var(--t3)}.logo-corpus{color:var(--t1)}.logo-ver{font-size:10px;color:var(--t3);font-weight:400;margin-left:5px}
 .header-center{flex:1;display:flex;justify-content:center}
 .session-name{font-family:var(--fm);font-size:12px;color:var(--t2);padding:3px 10px;border:1px solid transparent;border-radius:var(--r-s);outline:none;text-align:center;min-width:160px}
 .session-name:focus{border-color:var(--ac);color:var(--t1);background:var(--bg-elev)}
@@ -381,3 +381,15 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;color:inherit
 /* PROJECT SETTINGS MODAL */
 .settings-section{margin-bottom:14px}
 .settings-section h4{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:6px}
+
+/* GUIDED MODE */
+.guide-tip{display:none;padding:8px 10px;margin:4px 0;background:rgba(78,205,196,.08);border:1px solid rgba(78,205,196,.2);border-radius:var(--r-m);font-size:11px;line-height:1.55;color:var(--t2)}
+.guide-tip strong{color:var(--ac);font-weight:600}
+.guide-tip em{color:var(--t1);font-style:normal;background:var(--bg-elev);padding:0 4px;border-radius:2px;font-family:var(--fm);font-size:10px}
+.guide-tip-inline{margin:0;border-radius:0;border-left:none;border-right:none;border-top:none}
+.guide-tip-overlay{position:absolute;top:8px;left:8px;right:8px;z-index:5;border-radius:var(--r-m);background:rgba(13,13,18,.88);backdrop-filter:blur(4px);border:1px solid rgba(78,205,196,.25)}
+
+body.guided .guide-tip{display:block}
+
+#btnGuideMode.active{background:var(--ac-dim);color:var(--ac);border-color:rgba(78,205,196,.3)}
+#btnGuideMode.active .material-symbols-outlined{color:var(--ac)}
