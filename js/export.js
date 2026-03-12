@@ -27,6 +27,7 @@ IC.exportSession=function(){
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='img-corpus_'+IC.state.sessionName.replace(/[^a-zA-Z0-9áéíóúñü\s-]/g,'').replace(/\s+/g,'-')+'_'+ds()+'.json';
     a.click();URL.revokeObjectURL(a.href);
+    IC.toast('Sesión exportada.');
 };
 
 function importSession(file){
@@ -44,6 +45,7 @@ function importSession(file){
             document.getElementById('sessionName').textContent=IC.state.sessionName;
             IC.log('Sesión importada: '+IC.state.images.length+' imágenes');
             IC.refreshAll();if(IC.state.currentImageId)IC.selectImage(IC.state.currentImageId);else IC.showCanvasEmpty(true);
+            IC.toast('Sesión importada: '+IC.state.images.length+' imágenes.');
         }catch(err){alert('Error: '+err.message)}
     };
     r.readAsText(file);
@@ -76,33 +78,22 @@ function getScopedImages(){
 // ========== RENDER OFFSCREEN CANVAS SNAPSHOT ==========
 function renderSnapshot(imgData){
     return new Promise(function(resolve){
+        var resolved=false;
+        function done(url){if(resolved)return;resolved=true;resolve(url)}
+
         var el=document.createElement('canvas');
         el.style.cssText='position:absolute;left:-9999px;top:-9999px;';
         document.body.appendChild(el);
         var tc=new fabric.StaticCanvas(el,{width:900,height:600,backgroundColor:IC.state.canvasBg||'#111118'});
 
+        function cleanup(){try{tc.dispose();document.body.removeChild(el)}catch(e){}}
+
         fabric.Image.fromURL(imgData.dataUrl,function(img){
             var sc=Math.min(900*.9/img.width,600*.9/img.height,1);
             img.set({left:450,top:300,originX:'center',originY:'center',scaleX:sc,scaleY:sc});
             tc.setBackgroundImage(img,function(){
-                if(imgData.canvasObjects&&imgData.canvasObjects.length){
-                    fabric.util.enlivenObjects(imgData.canvasObjects,function(objs){
-                        objs.forEach(function(o){tc.add(o)});
-                        // Rebuild badges
-                        (imgData.annotations||[]).forEach(function(ann){
-                            var color=IC.getCategoryColor(ann.categoryId);
-                            (ann.badges||[]).forEach(function(b){
-                                var ci=new fabric.Circle({radius:12,fill:color,originX:'center',originY:'center'});
-                                var tx=new fabric.Text(String(ann.number),{fontSize:11,fontFamily:'monospace',fontWeight:'700',fill:'#0d0d12',originX:'center',originY:'center'});
-                                tc.add(new fabric.Group([ci,tx],{left:b.x,top:b.y}));
-                            });
-                        });
-                        tc.renderAll();
-                        var url=tc.toDataURL({format:'png',multiplier:1.5});
-                        tc.dispose();document.body.removeChild(el);resolve(url);
-                    });
-                } else {
-                    // Just badges
+                // Add badges
+                function addBadges(){
                     (imgData.annotations||[]).forEach(function(ann){
                         var color=IC.getCategoryColor(ann.categoryId);
                         (ann.badges||[]).forEach(function(b){
@@ -111,15 +102,27 @@ function renderSnapshot(imgData){
                             tc.add(new fabric.Group([ci,tx],{left:b.x,top:b.y}));
                         });
                     });
+                }
+
+                if(imgData.canvasObjects&&imgData.canvasObjects.length){
+                    fabric.util.enlivenObjects(imgData.canvasObjects,function(objs){
+                        objs.forEach(function(o){tc.add(o)});
+                        addBadges();
+                        tc.renderAll();
+                        var url=tc.toDataURL({format:'png',multiplier:1.5});
+                        cleanup();done(url);
+                    });
+                } else {
+                    addBadges();
                     tc.renderAll();
                     var url=tc.toDataURL({format:'png',multiplier:1.5});
-                    tc.dispose();document.body.removeChild(el);resolve(url);
+                    cleanup();done(url);
                 }
             });
         },{crossOrigin:'anonymous'});
 
         // Timeout fallback
-        setTimeout(function(){resolve(imgData.dataUrl)},5000);
+        setTimeout(function(){cleanup();done(imgData.dataUrl)},5000);
     });
 }
 
@@ -166,7 +169,7 @@ async function genReport(fmt){
     }
 
     var html=buildHTML(snapshots,o);
-    if(fmt==='html')dlHTML(html,o.title);
+    if(fmt==='html'){dlHTML(html,o.title);IC.toast('Informe HTML generado.')}
     else{var w=window.open('','_blank');if(!w){alert('Permite popups.');return}w.document.write(html);w.document.close();setTimeout(function(){w.print()},800)}
 }
 

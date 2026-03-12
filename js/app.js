@@ -15,7 +15,6 @@ IC.state = {
     customMetaSchema: [],  // {id, name, type, options:[]}
     annotationLevels: ['Nivel 1', 'Nivel 2', 'Nivel 3'],
     currentImageId: null,
-    batchMode: false,
     batchSelected: new Set(),
     activeTool: 'select',
     activeCategory: null,
@@ -89,6 +88,109 @@ IC.getVisibleImages = function() {
 IC.log = function(text) {
     IC.state.auditLog.push({ date: new Date().toISOString(), text: text });
     if (IC.state.auditLog.length > 500) IC.state.auditLog.shift();
+};
+
+// ========== TOAST ==========
+IC.toast = function(msg, type) {
+    var container = document.getElementById('toastContainer');
+    if (!container) return;
+    var el = document.createElement('div');
+    el.className = 'toast' + (type === 'warn' ? ' toast-warn' : '');
+    var icon = type === 'warn' ? 'warning' : 'check_circle';
+    el.innerHTML = '<span class="material-symbols-outlined">' + icon + '</span>' + msg;
+    container.appendChild(el);
+    requestAnimationFrame(function() { el.classList.add('visible'); });
+    setTimeout(function() {
+        el.classList.remove('visible');
+        setTimeout(function() { el.remove(); }, 250);
+    }, 2500);
+};
+
+// ========== AUTOSAVE ==========
+IC._dirty = false;
+IC._autosaveEnabled = true;
+IC._autosaveTimer = null;
+
+IC.markDirty = function() {
+    IC._dirty = true;
+    var ind = document.getElementById('autosaveIndicator');
+    var txt = document.getElementById('autosaveText');
+    if (ind && txt) { ind.className = 'autosave-indicator unsaved'; txt.textContent = 'sin guardar'; }
+};
+
+IC.autoSave = function() {
+    if (!IC._autosaveEnabled || !IC._dirty) return;
+    try {
+        if (IC.saveCurrentCanvasState) IC.saveCurrentCanvasState();
+        var data = {
+            version: '0.5-auto', savedAt: new Date().toISOString(),
+            sessionName: IC.state.sessionName, canvasBg: IC.state.canvasBg,
+            categories: IC.state.categories, collections: IC.state.collections,
+            chains: IC.state.chains, annotationLevels: IC.state.annotationLevels,
+            diary: IC.state.diary, auditLog: IC.state.auditLog,
+            customMetaSchema: IC.state.customMetaSchema,
+            currentImageId: IC.state.currentImageId,
+            images: IC.state.images.map(function(i) {
+                return { id:i.id, name:i.name, dataUrl:i.dataUrl, metadata:i.metadata,
+                    tags:i.tags, notes:i.notes||[], annotations:i.annotations,
+                    relations:i.relations, canvasObjects:i.canvasObjects||[], collectionIds:i.collectionIds||[] };
+            })
+        };
+        localStorage.setItem('img-corpus-autosave', JSON.stringify(data));
+        IC._dirty = false;
+        var ind = document.getElementById('autosaveIndicator');
+        var txt = document.getElementById('autosaveText');
+        if (ind && txt) {
+            ind.className = 'autosave-indicator saving';
+            txt.textContent = 'guardando...';
+            setTimeout(function() { ind.className = 'autosave-indicator'; txt.textContent = 'guardado'; }, 800);
+        }
+    } catch (e) {
+        console.error('Autosave failed:', e);
+        if (e.name === 'QuotaExceededError') {
+            IC.toast('Almacenamiento local lleno. Exporta tu sesión.', 'warn');
+            IC._autosaveEnabled = false;
+        }
+    }
+};
+
+IC.loadAutoSave = function() {
+    try {
+        var raw = localStorage.getItem('img-corpus-autosave');
+        if (!raw) return false;
+        var s = JSON.parse(raw);
+        if (!s.images || !s.images.length) return false;
+        var savedAt = s.savedAt ? new Date(s.savedAt).toLocaleString('es-PE') : 'fecha desconocida';
+        if (!confirm('Se encontró una sesión guardada automáticamente (' + s.images.length + ' imágenes, ' + savedAt + ').\n\n¿Restaurar?')) return false;
+        IC.state.images = s.images;
+        IC.state.categories = s.categories || [];
+        IC.state.collections = s.collections || [];
+        IC.state.chains = s.chains || [];
+        IC.state.diary = s.diary || [];
+        IC.state.auditLog = s.auditLog || [];
+        IC.state.customMetaSchema = s.customMetaSchema || [];
+        IC.state.canvasBg = s.canvasBg || '#111118';
+        IC.state.annotationLevels = s.annotationLevels || ['Nivel 1', 'Nivel 2', 'Nivel 3'];
+        IC.state.sessionName = s.sessionName || 'Sesión restaurada';
+        IC.state.currentImageId = s.currentImageId || (s.images.length ? s.images[0].id : null);
+        document.getElementById('sessionName').textContent = IC.state.sessionName;
+        return true;
+    } catch (e) {
+        console.error('Load autosave failed:', e);
+        return false;
+    }
+};
+
+IC.clearAutoSave = function() {
+    localStorage.removeItem('img-corpus-autosave');
+    IC.toast('Datos locales eliminados.');
+};
+
+// Wrap pushUndo to mark dirty
+var _origPushUndo = IC.pushUndo;
+IC.pushUndo = function() {
+    _origPushUndo();
+    IC.markDirty();
 };
 
 // ========== REFRESH ==========
@@ -181,7 +283,6 @@ IC.renderAnnotationsPanel = function(img) {
     });
 
     IC.renderNotesList(img);
-    IC.renderLevelsList();
 
     var container = document.getElementById('annList');
     var countEl = document.getElementById('annCount');
@@ -238,7 +339,22 @@ IC.renderAnnotationsPanel = function(img) {
     });
 
     container.querySelectorAll('.ann-note-edit').forEach(function(el) {
-        el.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); } });
+        el.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
+            // Tab: advance to next level of same annotation (or next annotation's first level)
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                el.blur();
+                var allFields = Array.from(container.querySelectorAll('.ann-note-edit'));
+                var idx = allFields.indexOf(el);
+                var next = e.shiftKey ? allFields[idx - 1] : allFields[idx + 1];
+                if (next) {
+                    // Find corresponding display to click
+                    var disp = container.querySelector('.ann-note-display[data-ann="' + next.dataset.ann + '"][data-key="' + next.dataset.key + '"]');
+                    if (disp) setTimeout(function() { disp.click(); }, 50);
+                }
+            }
+        });
         el.addEventListener('blur', function() {
             var ann = img.annotations.find(function(a) { return a.id === el.dataset.ann; });
             if (!ann) return;
@@ -627,6 +743,7 @@ function initCategoryUI() {
         IC.log('Categoría creada: '+name);
         IC.renderCategories(); IC.updateCategorySelects();
         IC.closeModal('modalCategory');
+        IC.toast('Categoría "' + name + '" creada.');
     });
 }
 
@@ -640,13 +757,13 @@ function initNotesAndLevels() {
         var note = { id: IC.uid(), text: '' };
         img.notes.push(note);
         IC.renderNotesList(img);
-        // Auto-focus the new note
         setTimeout(function() {
             var disp = document.querySelector('.note-display[data-note="' + note.id + '"]');
             if (disp) disp.click();
         }, 50);
     });
 
+    // Settings modal: levels
     document.getElementById('btnAddLevel').addEventListener('click', function() {
         var name = prompt('Nombre del nuevo nivel:');
         if (!name || !name.trim()) return;
@@ -655,8 +772,34 @@ function initNotesAndLevels() {
         IC.pushUndo();
         IC.state.annotationLevels.push(name);
         IC.log('Nivel de análisis agregado: "' + name + '"');
+        IC.renderLevelsList();
+        IC.toast('Nivel "' + name + '" agregado.');
         var img = IC.getCurrentImage();
         if (img) IC.renderAnnotationsPanel(img);
+    });
+}
+
+// ========== SETTINGS ==========
+function initSettings() {
+    document.getElementById('btnSettings').addEventListener('click', function() {
+        IC.renderLevelsList();
+        var cb = document.getElementById('settingsAutosave');
+        if (cb) cb.checked = IC._autosaveEnabled;
+        IC.openModal('modalSettings');
+    });
+
+    document.getElementById('settingsAutosave').addEventListener('change', function() {
+        IC._autosaveEnabled = this.checked;
+        if (!this.checked) {
+            var ind = document.getElementById('autosaveIndicator');
+            var txt = document.getElementById('autosaveText');
+            if (ind && txt) { ind.className = 'autosave-indicator'; txt.textContent = 'desactivado'; }
+        }
+    });
+
+    document.getElementById('btnClearAutosave').addEventListener('click', function() {
+        if (!confirm('¿Borrar todos los datos guardados localmente?')) return;
+        IC.clearAutoSave();
     });
 }
 
@@ -744,6 +887,7 @@ function initSelection() {
             }
         });
         IC.log('Colección "' + name.trim() + '" creada con ' + IC.state.batchSelected.size + ' imágenes');
+        IC.toast('Colección "' + name.trim() + '" creada.');
         IC.state.batchSelected.clear();
         IC.updateSelBar(); IC.renderGallery();
         if (IC.renderCollectionsTree) IC.renderCollectionsTree();
@@ -801,6 +945,7 @@ function assignSelectedToCollection(collId, collName) {
     IC.state.batchSelected.clear();
     IC.updateSelBar(); IC.renderGallery();
     if (IC.renderCollectionsTree) IC.renderCollectionsTree();
+    IC.toast(added + ' imagen(es) añadida(s) a "' + collName + '"');
 }
 
 // ========== CUSTOM META FIELDS ==========
@@ -859,6 +1004,7 @@ function initTagInput() {
                 }
             });
             IC.log('Etiquetas copiadas a ' + IC.state.batchSelected.size + ' imágenes');
+            IC.toast('Etiquetas copiadas a ' + IC.state.batchSelected.size + ' imágenes.');
             IC.renderCorpusTags();
         });
     }
@@ -885,6 +1031,7 @@ function initTagInput() {
                 }
             });
             IC.log('Metadatos copiados a ' + IC.state.batchSelected.size + ' imágenes');
+            IC.toast('Metadatos copiados a ' + IC.state.batchSelected.size + ' imágenes.');
         });
     }
 }
@@ -1090,6 +1237,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initHeader();
     initCategoryUI();
     initNotesAndLevels();
+    initSettings();
     initSelection();
     initToolbar();
     initKeyboard();
@@ -1101,6 +1249,9 @@ document.addEventListener('DOMContentLoaded', function() {
     IC.renderCategories();
     IC.updateCategorySelects();
 
+    // Try autosave restore
+    var restored = IC.loadAutoSave();
+
     setTimeout(function() {
         try { if(IC.initCorpus) IC.initCorpus(); } catch(e) { console.error('initCorpus:', e); }
         try { if(IC.initCollections) IC.initCollections(); } catch(e) { console.error('initCollections:', e); }
@@ -1109,6 +1260,25 @@ document.addEventListener('DOMContentLoaded', function() {
         try { if(IC.initDiary) IC.initDiary(); } catch(e) { console.error('initDiary:', e); }
         try { if(IC.initGraph) IC.initGraph(); } catch(e) { console.error('initGraph:', e); }
         try { if(IC.initExport) IC.initExport(); } catch(e) { console.error('initExport:', e); }
-        IC.showCanvasEmpty(true);
+
+        if (restored) {
+            IC.refreshAll();
+            if (IC.state.currentImageId) IC.selectImage(IC.state.currentImageId);
+            IC.toast('Sesión restaurada desde guardado local.');
+        } else {
+            IC.showCanvasEmpty(true);
+        }
+
+        // Start autosave timer
+        IC._autosaveTimer = setInterval(IC.autoSave, 30000);
     },100);
+
+    // Warn before closing with unsaved changes
+    window.addEventListener('beforeunload', function(e) {
+        if (IC._dirty && IC._autosaveEnabled) IC.autoSave(); // Save before leaving
+        if (IC._dirty && IC.state.images.length > 0) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 });
