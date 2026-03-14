@@ -11,6 +11,26 @@
     <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+    <!-- LOADER -->
+    <div id="appLoader" style="position:fixed;inset:0;z-index:9999;background:#0d0d12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .3s ease">
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:22px;font-weight:700;letter-spacing:-.5px">
+            <span style="color:#4ecdc4">img</span><span style="color:#686880">-</span><span style="color:#e8e8f0">corpus</span>
+            <span style="font-size:11px;color:#686880;font-weight:400;margin-left:5px">v1</span>
+        </div>
+        <div style="width:120px;height:2px;background:#1a1a22;border-radius:2px;overflow:hidden">
+            <div style="width:40%;height:100%;background:#4ecdc4;border-radius:2px;animation:ldbar .8s ease-in-out infinite alternate"></div>
+        </div>
+        <style>@keyframes ldbar{from{margin-left:0}to{margin-left:60%}}</style>
+    </div>
+    <script>
+    (function(){
+        var loader=document.getElementById('appLoader');
+        function hide(){loader.style.opacity='0';setTimeout(function(){loader.remove()},300)}
+        document.fonts.ready.then(hide);
+        setTimeout(hide,3000);
+    })();
+    </script>
+
     <!-- HEADER -->
     <header id="app-header">
         <div class="header-left">
