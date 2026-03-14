@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>img-corpus lite — Anotación de imagen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header id="app-header">
+        <div class="header-left">
+            <a href="../" class="logo" title="Volver a img-corpus">
+                <span class="logo-img">img</span><span class="logo-dash">-</span><span class="logo-corpus">corpus</span>
+                <span class="logo-ver">lite</span>
+            </a>
+        </div>
+        <div class="header-center">
+            <span class="image-name" id="imageName">Sin imagen</span>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-ghost" id="btnChangeImage" title="Cambiar imagen">
+                <span class="material-symbols-outlined">add_photo_alternate</span>
+                <span class="btn-label">Cambiar imagen</span>
+            </button>
+            <span class="hdr-sep"></span>
+            <button class="btn btn-ghost" id="btnExportJSON" title="Exportar JSON">
+                <span class="material-symbols-outlined">data_object</span>
+                <span class="btn-label">JSON</span>
+            </button>
+            <button class="btn btn-primary" id="btnExportReport" title="Generar informe HTML">
+                <span class="material-symbols-outlined">description</span>
+                <span class="btn-label">Informe</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main id="app-main">
+        <!-- WORKSPACE -->
+        <section id="workspace">
+            <!-- Toolbar -->
+            <div class="toolbar" id="toolbar">
+                <div class="tool-group">
+                    <button class="tool-btn active" data-tool="select" title="Seleccionar (V)"><span class="material-symbols-outlined">arrow_selector_tool</span></button>
+                    <button class="tool-btn" data-tool="rect" title="Rectángulo (R)"><span class="material-symbols-outlined">rectangle</span></button>
+                    <button class="tool-btn" data-tool="ellipse" title="Elipse (E)"><span class="material-symbols-outlined">circle</span></button>
+                    <button class="tool-btn" data-tool="freedraw" title="Dibujo libre (D)"><span class="material-symbols-outlined">draw</span></button>
+                    <button class="tool-btn" data-tool="arrow" title="Flecha (A)"><span class="material-symbols-outlined">arrow_right_alt</span></button>
+                    <button class="tool-btn" data-tool="text" title="Texto (T)"><span class="material-symbols-outlined">title</span></button>
+                    <button class="tool-btn" data-tool="marker" title="Marcador (M)"><span class="material-symbols-outlined">pin_drop</span></button>
+                </div>
+                <span class="tool-sep"></span>
+                <div class="tool-group">
+                    <select id="toolCategory" class="tool-select">
+                        <option value="" disabled>Crea una categoría</option>
+                    </select>
+                    <button class="tool-btn" id="btnAddCategory" title="Nueva categoría"><span class="material-symbols-outlined">add_circle</span></button>
+                </div>
+                <span class="tool-sep"></span>
+                <div class="tool-group">
+                    <button class="tool-btn" id="btnZoomIn" title="Acercar"><span class="material-symbols-outlined">zoom_in</span></button>
+                    <button class="tool-btn" id="btnZoomOut" title="Alejar"><span class="material-symbols-outlined">zoom_out</span></button>
+                    <button class="tool-btn" id="btnZoomFit" title="Ajustar"><span class="material-symbols-outlined">fit_screen</span></button>
+                    <span class="zoom-lbl" id="zoomLevel">100%</span>
+                </div>
+                <span class="tool-sep"></span>
+                <div class="tool-group bg-toggle">
+                    <button class="bg-btn active" data-bg="#111118" title="Negro"></button>
+                    <button class="bg-btn" data-bg="#555566" title="Gris"></button>
+                    <button class="bg-btn" data-bg="#e8e8e8" title="Blanco"></button>
+                </div>
+                <span class="tool-sep"></span>
+                <div class="tool-group">
+                    <button class="tool-btn" id="btnDeleteSel" title="Eliminar selección"><span class="material-symbols-outlined">delete_outline</span></button>
+                </div>
+            </div>
+
+            <!-- Canvas -->
+            <div class="canvas-wrap" id="canvasContainer">
+                <canvas id="mainCanvas"></canvas>
+                <div class="canvas-empty" id="canvasEmpty">
+                    <span class="material-symbols-outlined">add_photo_alternate</span>
+                    <p>Arrastra una imagen aquí o haz clic para seleccionar</p>
+                    <button class="btn btn-accent" id="btnUpload">
+                        <span class="material-symbols-outlined">upload</span> Seleccionar imagen
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Resize handle -->
+        <div class="resize-handle" id="resizeRight"></div>
+
+        <!-- RIGHT PANEL -->
+        <aside id="rightPanel">
+            <div class="rpanel-tabs">
+                <button class="rpanel-tab active" data-rp="annotations">Anotaciones</button>
+                <button class="rpanel-tab" data-rp="metadata">Metadatos</button>
+                <button class="rpanel-tab" data-rp="tags">Etiquetas</button>
+            </div>
+
+            <!-- Annotations -->
+            <div class="rpanel-content active" id="rpAnnotations">
+                <div class="rp-section">
+                    <h4>Notas
+                        <button class="btn btn-xs btn-ghost" id="btnAddNote" title="Agregar nota">
+                            <span class="material-symbols-outlined">add</span>
+                        </button>
+                    </h4>
+                    <div id="notesList"></div>
+                </div>
+                <div class="rp-section">
+                    <h4>Anotaciones <span class="ann-count" id="annCount">0</span></h4>
+                    <div id="annList"></div>
+                </div>
+                <div class="rp-section categories-section">
+                    <div class="section-hdr">
+                        <h4>Categorías</h4>
+                    </div>
+                    <div id="categoriesList"></div>
+                </div>
+                <div class="rp-section">
+                    <div class="section-hdr">
+                        <h4>Niveles de análisis</h4>
+                        <button class="btn btn-xs btn-ghost" id="btnAddLevel" title="Agregar nivel">
+                            <span class="material-symbols-outlined">add</span>
+                        </button>
+                    </div>
+                    <div id="levelsList"></div>
+                </div>
+            </div>
+
+            <!-- Metadata -->
+            <div class="rpanel-content" id="rpMetadata">
+                <div class="rp-section">
+                    <h4>Metadatos de la imagen</h4>
+                    <div class="meta-fields" id="metaFields"></div>
+                </div>
+            </div>
+
+            <!-- Tags -->
+            <div class="rpanel-content" id="rpTags">
+                <div class="rp-section">
+                    <h4>Etiquetas</h4>
+                    <div class="tag-input-row">
+                        <input type="text" id="tagInput" placeholder="Escribir etiqueta..." class="tag-input">
+                        <button class="btn btn-xs btn-accent" id="btnAddTag"><span class="material-symbols-outlined">add</span></button>
+                    </div>
+                    <div class="tags-cloud" id="tagsCloud"></div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- MODALS -->
+    <!-- Category modal -->
+    <div class="modal-overlay" id="modalCategory">
+        <div class="modal">
+            <div class="modal-hdr"><h3>Nueva categoría</h3><button class="modal-x">&times;</button></div>
+            <div class="modal-body">
+                <div class="mf"><label>Nombre</label><input type="text" id="catName" placeholder="Ej: composición, color, gesto..."></div>
+                <div class="mf"><label>Color</label><input type="color" id="catColor" value="#4ecdc4"></div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost modal-x">Cancelar</button>
+                <button class="btn btn-primary" id="btnCatApply">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+    <script src="js/app.js"></script>
+</body>
+</html>
